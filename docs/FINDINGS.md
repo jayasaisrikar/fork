@@ -27,6 +27,15 @@ has been run against the live service yet. Part B is still to do.
 | A16 | n/a                                                               | The constructor validates the key in the background (not awaited), and the SDK logs to stdout on every call.                                                                                                                                                             | A bad key shows up on first use. S8 records how.                                                                                                              |
 | A17 | U3: amount units                                                  | Tool metadata from the platform carries `amountFields`, `amountUnit`, `currency`, `recipientField`, `transactionType`. The SDK reads the amount from the configured field and sends it as `_policy_context.amount`.                                                      | Dollars in `amount` as specced. There is a recipient field setting too, which S7 depends on.                                                                  |
 
+### From the platform UI (2026-10-10)
+
+- **The MCP Registry form does not let you name the API-key header.** "API key" is always sent as
+  `X-API-Key`; the other choice is a Bearer token. So the MCP now accepts the key in
+  `X-Fork-MCP-Key`, `X-API-Key` or `Authorization: Bearer`. Which one the proxy uses at invoke time
+  is still for S1 to show.
+- **Add AI agent** offers: Connect by URL, Attached to MCP server, From plugin, Custom (manual).
+  FORK's agent has no endpoint of its own, so it is registered as attached to `fork-finance-mcp`.
+
 ### Open risk for S2
 
 If a locally-raised `IntentMismatchException` leaves no trace on the platform (A8), the block is

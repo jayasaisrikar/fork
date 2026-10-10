@@ -4,7 +4,16 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { Hono } from 'hono';
 
-const KEY_HEADER = 'x-fork-mcp-key';
+// ours, plus the two the ArmorIQ registry knows how to send
+const KEY_HEADERS = ['x-fork-mcp-key', 'x-api-key'];
+
+function keyFrom(headers: Headers): string | undefined {
+  for (const name of KEY_HEADERS) {
+    const value = headers.get(name);
+    if (value) return value;
+  }
+  return headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
+}
 
 interface ServeOptions {
   name: string;
@@ -23,7 +32,7 @@ export function serveMcp({ name, port, key, register }: ServeOptions) {
   app.get('/health', (c) => c.json({ ok: true, service: name }));
 
   app.all('/mcp', async (c) => {
-    const given = c.req.header(KEY_HEADER);
+    const given = keyFrom(c.req.raw.headers);
     if (!given || !timingSafeEqual(digest(given), expected)) {
       // names only, so we can see what the proxy forwards without leaking values
       const headerNames = [...c.req.raw.headers.keys()].join(', ');
