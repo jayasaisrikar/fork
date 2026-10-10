@@ -18,6 +18,22 @@ Next risk: IntentMismatchException is raised inside the SDK before any network c
 ```
 
 ```
+PHASE 0 EXIT GATE MET (pending one visual check) — 2026-10-10 23:07 IST
+Built: MCP fixes found by the live spike: accept the registry's X-API-Key header, strip the
+  proxy's _iam_context from JSON-RPC bodies. Policy file now mirrors the real platform schema.
+Tests: 29 unit passed / 0 failed. Spikes: S0 S1 S2 S5 S6 S8 pass, S3 documented
+  (params not bound), S4 and S7 blocked (no amount or recipient settings found yet).
+ArmorIQ live: allow tokenId=2d98f33c8cc44eb8bf6524980c560fc1 (get_treasury_balance);
+  block tokenId=26a09234166a49279e778c431ce56794 (PolicyBlockedException, proxy 403,
+  update_vendor_destination).
+Changed from spec: no registered agent (platform form rejects every method); policy targets
+  the MCP server; policy schema differs from the docs. See FINDINGS Part B.
+UI quality check: n/a (no UI this phase)
+Next risk: nobody has looked at the platform's Activity/Observability view yet to confirm the
+  allow and the block are visible there. HOLD may have to be cut (FINDINGS B10).
+```
+
+```
 PHASE 1 STARTED EARLY — 2026-10-10 22:32 IST
 Built: the parts of Phase 1 that do not depend on the spike. packages/shared: money
   (pro-rata split by largest remainder, USD formatting), canonical JSON, sha256 hash.

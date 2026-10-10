@@ -1,38 +1,19 @@
-apiVersion: armor.io/v1
-kind: Policy
-metadata:
-  name: fork-treasury
-  targetType: agent
-  targetId: '<FORK agent id from platform>'
-spec:
-  priority: 100
-  status: active
-  defaultEnforcementAction: block
-  memberRules:
-    '*':
-      allowedTools:
-        - get_treasury_balance
-        - list_invoices
-        - get_vendor
-        - get_sandbox_messages
-        - execute_payment
-        - get_payment_receipt
-      enforcementAction: allow_log
-      toolEnforcement:
-        update_vendor_destination: block
-      amountThreshold: { maxPerTransaction: 25000, requireApprovalAbove: 10000, currency: USD }
-      velocityLimit: { maxTransactionsPerHour: 30, maxCumulativePerDay: 60000, currency: USD }
-      recipientValidation:
-        approvedVendors:
-          [
-            rcp-harbor,
-            rcp-northline,
-            rcp-meridian,
-            rcp-beacon,
-            rcp-alto,
-            rcp-juniper,
-            rcp-verve,
-            rcp-orchid,
-          ]
-        blockNewRecipients: true
-      transactionTypeControl: { allowedTypes: [payment], blockedTypes: [wire_transfer] }
+# mirrors the policy active on platform.armoriq.ai (created in the policy editor)
+name: fork-treasury
+version: v0.1.0
+scope:
+  target_type: mcp
+  # id of fork-finance-mcp in the registry
+  target: 9f065919-b0f6-416a-a5d5-dab3d7442c32
+  caller: all
+default_action: block
+priority: 50
+rules:
+  - tool: list_invoices
+    action: allow
+  - tool: execute_payment
+    action: allow
+  - tool: get_treasury_balance
+    action: allow
+  - tool: update_vendor_destination
+    action: block
