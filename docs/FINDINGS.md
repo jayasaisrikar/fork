@@ -94,3 +94,14 @@ verified, metadata: { hasToolError } }`. No trace ID. The token carries `tokenId
 - **B10. Still open:** the $10,000 hold (S4) and recipient validation (S7) have no home in this
   editor. Either ArmorPay's Policy Studio exposes them elsewhere on the platform, or HOLD is cut
   from the demo and unknown recipients are stopped by the MCP alone.
+- **B11. Proof lives on the Intent page (U7).** Activity only logs `plan.created`. Intent lists every
+  plan with an outcome and "Decided by". A blocked call shows the plan as Blocked by Policy Engine.
+  The plan detail page shows the root hash (it matches `token.planHash`), an "Authorized vs
+  attempted" view and an Audit tab. Plans created before the policy was activated all show as
+  Blocked, even the ones that succeeded, so proof screenshots must come from a fresh run.
+- **B12. Allowed plans stay "Running" until told otherwise.** `client.completePlan(planId)` returned
+  200 and the plan then showed Completed. The commit runner should close every plan it opens.
+- **B13. The Audit tab is empty for `invokeWithPolicy` calls.** It reads "No executed actions have
+  been logged". The SDK's `ArmorIQSession.report()` posts to `/iap/audit`; to be tried in Phase 2.
+- **B14. Holds exist (Intent has a Held Actions queue) but only per tool.** No amount threshold
+  has been found anywhere on the platform so far.
