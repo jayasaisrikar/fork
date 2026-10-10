@@ -1,5 +1,6 @@
 import { cashCents, loadState, schema, type Db } from '@fork/db';
 import { openCents } from '@fork/domain-finance';
+import { LARGE_PAYMENT_TOOL, PAYMENT_TOOL, type PaymentTool } from '@fork/shared';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { and, eq, gt } from 'drizzle-orm';
 import { z } from 'zod';
@@ -91,24 +92,29 @@ export function registerTools(server: McpServer, { db, capabilitySecret }: ToolC
     },
   );
 
-  server.registerTool(
-    'execute_payment',
-    {
-      description: 'Pay an approved vendor. amount is dollars and must equal amountCents.',
-      inputSchema: PaymentInput,
-    },
-    async (params) => {
+  const paymentTools: [PaymentTool, string][] = [
+    [
+      PAYMENT_TOOL,
+      'Pay an approved vendor up to the approval threshold. amount is dollars and must equal amountCents.',
+    ],
+    [
+      LARGE_PAYMENT_TOOL,
+      'Pay an approved vendor an amount above the approval threshold. Held for human approval.',
+    ],
+  ];
+  for (const [tool, description] of paymentTools) {
+    server.registerTool(tool, { description, inputSchema: PaymentInput }, async (params) => {
       // keep the capability out of the logs
-      logCall('execute_payment', { ...params, approvedExecutionRef: undefined });
-      const result = executePayment(db, capabilitySecret, params);
+      logCall(tool, { ...params, approvedExecutionRef: undefined });
+      const result = executePayment(db, capabilitySecret, params, new Date(), tool);
       if (!result.ok) return fail(result.code, result.message);
       return ok({
         receipt: result.receipt,
         replayed: result.replayed,
         cashAfterCents: cashCents(db, params.scenarioId),
       });
-    },
-  );
+    });
+  }
 
   server.registerTool(
     'get_payment_receipt',

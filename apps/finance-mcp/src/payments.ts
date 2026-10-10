@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { cashCents, postEntry, schema, type Db } from '@fork/db';
+import { LARGE_PAYMENT_TOOL, PAYMENT_TOOL, type PaymentTool } from '@fork/shared';
 import { paymentArgsHash, verifyCapability } from '@fork/shared/capability';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-const { invoices, receipts, usedCapabilities, vendors } = schema;
+const { invoices, receipts, scenarios, usedCapabilities, vendors } = schema;
 
 export const PaymentInput = {
   scenarioId: z.string().min(1),
@@ -28,6 +29,7 @@ export type DenyCode =
   | 'VENDOR_NOT_APPROVED'
   | 'RECIPIENT_MISMATCH'
   | 'AMOUNT_MISMATCH'
+  | 'WRONG_PAYMENT_TOOL'
   | 'EXCEEDS_OPEN_BALANCE'
   | 'INSUFFICIENT_CASH';
 
@@ -43,6 +45,7 @@ export function executePayment(
   secret: string,
   params: PaymentParams,
   now = new Date(),
+  tool: PaymentTool = PAYMENT_TOOL,
 ): PaymentResult {
   return db.transaction(
     (tx) => {
@@ -91,6 +94,16 @@ export function executePayment(
 
       if (params.amountCents !== Math.round(params.amount * 100)) {
         return deny('AMOUNT_MISMATCH', 'amount and amountCents disagree');
+      }
+
+      // big payments have to come in through the tool ArmorIQ holds, small ones through the other
+      const scenario = tx.select().from(scenarios).where(eq(scenarios.id, params.scenarioId)).get();
+      const isLarge = params.amountCents > (scenario?.holdAboveCents ?? 0);
+      if (isLarge !== (tool === LARGE_PAYMENT_TOOL)) {
+        return deny(
+          'WRONG_PAYMENT_TOOL',
+          `A payment of this size must use ${isLarge ? LARGE_PAYMENT_TOOL : PAYMENT_TOOL}`,
+        );
       }
 
       const open = tx

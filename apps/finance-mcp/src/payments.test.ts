@@ -1,4 +1,5 @@
 import { balanceCents, cashCents, loadState, openDb, schema, seedScenario } from '@fork/db';
+import { LARGE_PAYMENT_TOOL, PAYMENT_TOOL, type PaymentTool } from '@fork/shared';
 import { mintCapability, paymentArgsHash } from '@fork/shared/capability';
 import { sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
@@ -160,7 +161,7 @@ describe('payment checks', () => {
 
   it('never lets cash go negative', () => {
     const db = fresh();
-    const pay = (vendor: string, dollars: number) =>
+    const pay = (vendor: string, dollars: number, tool: PaymentTool) =>
       executePayment(
         db,
         SECRET,
@@ -171,18 +172,40 @@ describe('payment checks', () => {
           amountCents: dollars * 100,
         }),
         NOW,
+        tool,
       );
 
-    for (const [vendor, dollars] of [
-      ['alto', 17000],
-      ['juniper', 12000],
-      ['meridian', 11000],
-      ['northline', 8000],
-    ] as const) {
-      expect(pay(vendor, dollars).ok).toBe(true);
-    }
+    expect(pay('alto', 17000, LARGE_PAYMENT_TOOL).ok).toBe(true);
+    expect(pay('juniper', 12000, LARGE_PAYMENT_TOOL).ok).toBe(true);
+    expect(pay('meridian', 11000, LARGE_PAYMENT_TOOL).ok).toBe(true);
+    expect(pay('northline', 8000, PAYMENT_TOOL).ok).toBe(true);
     expect(cashCents(db, SCENARIO)).toBe(200_000);
-    expect(pay('harbor', 4000)).toMatchObject({ ok: false, code: 'INSUFFICIENT_CASH' });
+    expect(pay('harbor', 4000, PAYMENT_TOOL)).toMatchObject({
+      ok: false,
+      code: 'INSUFFICIENT_CASH',
+    });
     expect(cashCents(db, SCENARIO)).toBe(200_000);
+  });
+
+  it('makes payments over the threshold use the held tool, and only those', () => {
+    const db = fresh();
+    const juniper = payment({
+      vendorId: 'v-juniper',
+      recipientId: 'rcp-juniper',
+      amount: 12000,
+      amountCents: 1_200_000,
+    });
+    expect(executePayment(db, SECRET, juniper, NOW, PAYMENT_TOOL)).toMatchObject({
+      ok: false,
+      code: 'WRONG_PAYMENT_TOOL',
+    });
+    expect(executePayment(db, SECRET, payment(), NOW, LARGE_PAYMENT_TOOL)).toMatchObject({
+      ok: false,
+      code: 'WRONG_PAYMENT_TOOL',
+    });
+    expect(cashCents(db, SCENARIO)).toBe(5_000_000);
+
+    expect(executePayment(db, SECRET, juniper, NOW, LARGE_PAYMENT_TOOL).ok).toBe(true);
+    expect(cashCents(db, SCENARIO)).toBe(3_800_000);
   });
 });

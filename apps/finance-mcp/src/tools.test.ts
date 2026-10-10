@@ -70,7 +70,7 @@ describe('fork-finance-mcp over HTTP', () => {
     expect((await rpc('tools/list', {}, {}, 'wrong')).status).toBe(401);
   });
 
-  it('exposes all seven tools with typed schemas', async () => {
+  it('exposes all eight tools with typed schemas', async () => {
     const { rpc } = setup();
     const { body } = await rpc('tools/list', {});
     const tools = body.result?.tools as {
@@ -78,6 +78,7 @@ describe('fork-finance-mcp over HTTP', () => {
       inputSchema: { type: string; properties: object };
     }[];
     expect(tools.map((tool) => tool.name).sort()).toEqual([
+      'execute_large_payment',
       'execute_payment',
       'get_payment_receipt',
       'get_sandbox_messages',
