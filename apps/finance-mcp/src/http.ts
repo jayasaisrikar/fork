@@ -69,7 +69,18 @@ export function createApp({ name, key, register }: Omit<ServeOptions, 'port'>) {
       enableJsonResponse: true,
     });
     await server.connect(transport);
-    return transport.handleRequest(c.req.raw, { parsedBody });
+    const response = await transport.handleRequest(c.req.raw, { parsedBody });
+    // one line per request, so we can see what the platform's probes actually ask for
+    const rpc = (parsedBody as { method?: unknown } | undefined)?.method;
+    console.log(
+      JSON.stringify({
+        at: new Date().toISOString(),
+        http: c.req.method,
+        rpc,
+        status: response.status,
+      }),
+    );
+    return response;
   });
 
   return app;
