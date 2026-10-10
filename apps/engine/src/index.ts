@@ -23,6 +23,7 @@ const gateway = missing.length
       mcpName: FINANCE_MCP,
       mcpKey: env.FORK_MCP_KEY!,
       userEmail: env.CFO_EMAIL!,
+      requesterEmail: env.ARMORIQ_REQUESTER_EMAIL || 'fork-agent@kettleandpine.test',
     });
 const gatewayMissingReason = missing.length
   ? `ArmorIQ is not configured (${missing.join(', ')} missing). Nothing can be committed.`
