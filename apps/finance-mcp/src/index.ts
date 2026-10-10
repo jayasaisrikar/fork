@@ -15,7 +15,7 @@ const scenario = { scenarioId: z.string() };
 
 serveMcp({
   name: FINANCE_MCP,
-  port: Number(process.env.FINANCE_MCP_PORT ?? 8787),
+  port: Number(process.env.FINANCE_MCP_PORT ?? 8797),
   key: process.env.FORK_MCP_KEY,
   register(server) {
     server.registerTool(
