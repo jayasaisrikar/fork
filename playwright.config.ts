@@ -24,7 +24,10 @@ export default defineConfig({
       url: `http://localhost:${WEB_PORT}`,
       reuseExistingServer: false,
       timeout: 120_000,
-      env: { NEXT_PUBLIC_ENGINE_URL: `http://localhost:${ENGINE_PORT}` },
+      env: {
+        NEXT_PUBLIC_ENGINE_URL: `http://localhost:${ENGINE_PORT}`,
+        NEXT_DIST_DIR: '.next-e2e',
+      },
     },
   ],
 });

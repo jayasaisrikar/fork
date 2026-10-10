@@ -106,9 +106,9 @@ body {
   }
 }
 
+/* rows slide in. no fade, so text is never shown at low contrast. */
 @keyframes rail-in {
   from {
-    opacity: 0;
     transform: translateY(-4px);
   }
 }

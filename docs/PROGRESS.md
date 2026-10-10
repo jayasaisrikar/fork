@@ -34,6 +34,40 @@ Next risk: nobody has looked at the platform's Activity/Observability view yet t
 ```
 
 ```
+PHASE 5 COMPLETE — 2026-10-11 01:45 IST
+Built: /app/runs and /app/runs/[id] (run record: authorization, attempted-versus-approved diff,
+  refused, held, receipts with JSON export, three-way reconciliation, chronology, simulation
+  replay). /app/audit (TanStack table, verdict, source, run and search filters, row inspector,
+  JSON and CSV export). / landing built on a recorded real run. Working section tabs.
+  scripts/record-run.ts and apps/web/data/recorded-run.json.
+Tests: 141 unit and integration passed / 0 failed. Browser: 9 passed (workspace x4, landing at
+  1440 and 390, landing interaction, run record, audit). axe: zero serious or critical on every
+  page, both themes. Not run: Lighthouse.
+ArmorIQ live: the recorded run. Real planner (longcat-2.5-preview-free), branch C authorized,
+  plan 3c8977f5-fb71-4c2c-97bc-8fbdad23907f: balance read and first payment allowed; the real
+  inbox agent then tried update_vendor_destination (IntentMismatchException, block) and an
+  $8,000 payment to recipient-external-999 (allowed by ArmorIQ, refused by the MCP). Branch
+  ended PARTIALLY_COMMITTED.
+Changed from spec: see the list below.
+UI quality check (landing, run record, audit; 1440 and 390; both themes):
+  Centered text beyond single-line labels? no
+  Gradient, glow, blur, glass, shimmer? no
+  Emoji? no
+  Icon-on-top feature grids? no
+  Inter, Geist, Space Grotesk or a system font? no
+  Money in a proportional font or left-aligned in a table? no
+  Verdict color on a non-verdict element? no. Reconciliation mismatches use the block color,
+    as specified.
+  Placeholder copy? no
+  A number not traceable to the snapshot, simulator, ledger or ArmorIQ? no. The landing's
+    numbers come from the recorded run; the one statistic is from the FBI's own report.
+  Could it pass for a generic AI SaaS dashboard? no
+  10-second read? yes. Both themes designed? yes. Visible focus? yes. Mobile works? yes.
+Next risk: no platform screenshots in docs/proof yet. The hold has not been approved from the UI
+  path. README, architecture doc, deploy and video are all still to do (Phase 6).
+```
+
+```
 PHASE 3 EXIT GATE MET — 2026-10-11 01:25 IST
 Built: session id and honest user agent on model calls; scripts/agent-check.ts.
 Tests: 141 passed / 0 failed / 0 blocked.
@@ -250,3 +284,15 @@ Chosen, installed in the phase that needs them: `better-sqlite3` 13.0.3, `drizzl
   by the stand-in. A live-ArmorIQ browser run needs a person to approve the hold.
 - **A held step now carries verdict `hold` while it waits.** The adapter passes the verdict it
   got from `toVerdict` along with the hold, so the UI never writes one itself.
+- **The landing's graph sits full width under the hero text**, not in the right 45%. Three branch
+  cards plus dead ends are unreadable in a 500px column. The right column holds the selected
+  branch's numbers instead.
+- **The landing shows a recorded real run, not example data**, in both the hero and the evidence
+  section. The operator's email is swapped for a fictional one; nothing else is edited.
+- **Only the verified BEC figure is shown.** $3.05 billion in reported losses (second-largest fraud
+  category by loss) was confirmed in the FBI IC3 2025 report PDF. The complaint count could not be
+  confirmed from the PDF, so it is left out.
+- **No GitHub link until `NEXT_PUBLIC_REPO_URL` is set.** A dead link is worse than none.
+- **No platform screenshot on the landing yet.** It needs a person at the ArmorIQ console.
+- **The Lab page is not built** (P2). Its tab is disabled with a reason.
+- **Lighthouse was not run.** axe covers the accessibility gate.

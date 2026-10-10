@@ -2,6 +2,7 @@
 
 import { Tabs, Tooltip } from 'radix-ui';
 import { List, Network, X } from 'lucide-react';
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Books } from '@/components/books';
 import { BranchCanvas, BranchList } from '@/components/branch-canvas';
@@ -145,13 +146,12 @@ function PrimaryAction({
     );
   }
   return (
-    <Button
-      variant="primary"
-      disabled
-      reason="The run record page is not built yet. Every call is in the execution rail below."
+    <Link
+      href={`/app/runs/${ws.view?.run.id ?? ''}`}
+      className="bg-accent text-bg border-accent inline-flex h-8 items-center rounded-[4px] border px-3 text-[13px] font-medium hover:opacity-90"
     >
       View run record
-    </Button>
+    </Link>
   );
 }
 
@@ -207,6 +207,7 @@ export default function WorkspacePage() {
   }, []);
 
   const view = ws.view;
+  const crumb = view ? `Run #${String(view.run.id).padStart(4, '0')}` : 'No run';
   const stage = stageOf(view);
   const selectedId = view?.branches.some((branch) => branch.id === picked)
     ? picked
@@ -250,7 +251,14 @@ export default function WorkspacePage() {
     return (
       <div data-theme={theme} className={shell}>
         <Tooltip.Provider>
-          <TopBar ws={ws} theme={theme} onTheme={toggleTheme} onPalette={() => setPalette(true)} />
+          <TopBar
+            active="Workspace"
+            crumb={crumb}
+            health={ws.health}
+            theme={theme}
+            onTheme={toggleTheme}
+            onPalette={() => setPalette(true)}
+          />
           <main className="flex flex-1 flex-col items-start gap-3 p-6">
             <Notice ws={ws} />
             <SignIn ws={ws} />
@@ -327,7 +335,14 @@ export default function WorkspacePage() {
     <div data-theme={theme} className={shell}>
       <Tooltip.Provider>
         <VerdictIsland events={ws.events} />
-        <TopBar ws={ws} theme={theme} onTheme={toggleTheme} onPalette={() => setPalette(true)} />
+        <TopBar
+          active="Workspace"
+          crumb={crumb}
+          health={ws.health}
+          theme={theme}
+          onTheme={toggleTheme}
+          onPalette={() => setPalette(true)}
+        />
 
         <div className="border-line flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-2">
           <Stepper stage={stage} />

@@ -147,6 +147,24 @@ export interface RunView {
   executions: Execution[];
   steps: Step[];
   messages: Message[];
+  receipts: Receipt[];
+  reconciliation: Reconciliation[];
+}
+
+export interface Receipt {
+  id: string;
+  vendorId: string;
+  recipientId: string;
+  amountCents: number;
+  at: string;
+}
+
+export interface Reconciliation {
+  executionId: string;
+  branchId: string;
+  authorizedCents: number;
+  executedCents: number;
+  ledgerCents: number;
 }
 
 export interface AuditEvent {

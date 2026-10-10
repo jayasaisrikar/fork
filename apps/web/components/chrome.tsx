@@ -102,71 +102,77 @@ export function HealthPopover({ health }: { health: Health | null }) {
   );
 }
 
-const TABS: { name: string; reason?: string }[] = [
-  { name: 'Workspace' },
-  { name: 'Runs', reason: 'The run record arrives with the flight recorder.' },
-  { name: 'Audit', reason: 'The evidence ledger is not built yet.' },
-  { name: 'Lab', reason: 'The harness lab is not built yet.' },
+const TABS: { name: string; href?: string; reason?: string }[] = [
+  { name: 'Workspace', href: '/app' },
+  { name: 'Runs', href: '/app/runs' },
+  { name: 'Audit', href: '/app/audit' },
+  { name: 'Lab', reason: 'The harness lab is optional and not built.' },
 ];
 
-export function TopBar({
-  ws,
-  theme,
-  onTheme,
-  onPalette,
-}: {
-  ws: Workspace;
+interface TopBarProps {
+  active: 'Workspace' | 'Runs' | 'Audit';
+  crumb?: string;
+  health: Health | null;
   theme: 'dark' | 'light';
   onTheme: () => void;
-  onPalette: () => void;
-}) {
+  onPalette?: () => void;
+}
+
+export function TopBar({ active, crumb, health, theme, onTheme, onPalette }: TopBarProps) {
   return (
-    <header className="border-line bg-surface flex h-14 shrink-0 items-center gap-4 border-b px-4">
+    <header className="border-line bg-surface flex h-14 shrink-0 items-center gap-3 border-b px-3 sm:gap-4 sm:px-4">
       <Wordmark />
       <div className="text-muted hidden items-center gap-1.5 text-[13px] md:flex">
         <span>Kettle &amp; Pine</span>
-        <span aria-hidden>/</span>
-        <span className="text-text font-mono">
-          {ws.view ? `Run #${String(ws.view.run.id).padStart(4, '0')}` : 'No run'}
-        </span>
+        {crumb ? (
+          <>
+            <span aria-hidden>/</span>
+            <span className="text-text font-mono">{crumb}</span>
+          </>
+        ) : null}
       </div>
-      <nav className="hidden items-center gap-1 lg:flex" aria-label="Sections">
+      <nav className="flex min-w-0 items-center gap-1" aria-label="Sections">
         {TABS.map((tab) =>
-          tab.reason ? (
-            <Hint key={tab.name} text={tab.reason}>
+          tab.href ? (
+            <Link
+              key={tab.name}
+              href={tab.href}
+              aria-current={tab.name === active ? 'page' : undefined}
+              className={`rounded-[4px] px-2 py-1 text-[13px] ${tab.name === active ? 'bg-raised font-medium' : 'text-muted hover:text-text'}`}
+            >
+              {tab.name}
+            </Link>
+          ) : (
+            <Hint key={tab.name} text={tab.reason ?? ''}>
               <span
                 tabIndex={0}
                 aria-disabled
-                className="text-muted cursor-not-allowed rounded-[4px] px-2 py-1 text-[13px] opacity-60"
+                className="text-muted hidden cursor-not-allowed rounded-[4px] px-2 py-1 text-[13px] opacity-60 lg:inline"
               >
                 {tab.name}
               </span>
             </Hint>
-          ) : (
-            <span
-              key={tab.name}
-              aria-current="page"
-              className="bg-raised rounded-[4px] px-2 py-1 text-[13px] font-medium"
-            >
-              {tab.name}
-            </span>
           ),
         )}
       </nav>
       <div className="ml-auto flex items-center gap-2">
-        <Chip>SANDBOX</Chip>
+        <span className="hidden sm:inline-flex">
+          <Chip>SANDBOX</Chip>
+        </span>
         <div className="hidden sm:block">
-          <HealthPopover health={ws.health} />
+          <HealthPopover health={health} />
         </div>
-        <Hint text="Command palette">
-          <button
-            type="button"
-            onClick={onPalette}
-            className="border-line text-muted hover:bg-raised hidden h-7 rounded-[4px] border px-2 font-mono text-[12px] sm:block"
-          >
-            ⌘K
-          </button>
-        </Hint>
+        {onPalette ? (
+          <Hint text="Command palette">
+            <button
+              type="button"
+              onClick={onPalette}
+              className="border-line text-muted hover:bg-raised hidden h-7 rounded-[4px] border px-2 font-mono text-[12px] sm:block"
+            >
+              ⌘K
+            </button>
+          </Hint>
+        ) : null}
         <Hint text={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}>
           <button
             type="button"

@@ -128,6 +128,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@fork/domain-finance':
+        specifier: workspace:*
+        version: link:../../packages/domain-finance
       '@fork/shared':
         specifier: workspace:*
         version: link:../../packages/shared
