@@ -16,13 +16,19 @@
     "dev:web": "pnpm --filter @fork/web dev",
     "dev:engine": "pnpm --filter @fork/engine dev",
     "dev:mcp": "pnpm --filter @fork/finance-mcp dev",
-    "spike": "tsx --env-file-if-exists=.env scripts/spike/run.ts"
+    "spike": "tsx --env-file-if-exists=.env scripts/spike/run.ts",
+    "api-run": "tsx --env-file-if-exists=.env scripts/api-run.ts",
+    "reset": "tsx --env-file-if-exists=.env scripts/reset.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@fork/armor-adapter": "workspace:*",
+    "@fork/db": "workspace:*",
+    "@fork/domain-finance": "workspace:*",
+    "@fork/harness": "workspace:*",
     "@fork/shared": "workspace:*",
     "@types/node": "26.6.3",
+    "drizzle-orm": "0.45.3",
     "eslint": "10.11.0",
     "prettier": "3.9.9",
     "tsx": "4.23.15",

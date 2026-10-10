@@ -1,3 +1,4 @@
+export * from './adapter';
 export * from './fixtures';
 export * from './risk';
 export * from './schema';

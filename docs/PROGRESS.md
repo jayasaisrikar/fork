@@ -34,6 +34,29 @@ Next risk: nobody has looked at the platform's Activity/Observability view yet t
 ```
 
 ```
+PHASE 2 COMPLETE — 2026-10-10 23:38 IST
+Built: packages/harness (branch and step lifecycles with guards, approved plan hash, commit
+  loop). packages/armor-adapter (toVerdict, gateway: sign, dispatch, close, health). Treasury
+  domain adapter (branch to exact MCP steps). Harness tables and append-only audit events.
+  apps/engine: createEngine (runs, proposals, simulate, authorize, commit runner, cancel,
+  resume after restart, labeled tamper test), CFO session with CSRF, REST API, SSE with
+  Last-Event-ID, health. Held large-payment tool in the MCP. scripts/api-run.ts, scripts/reset.ts.
+Tests: 128 passed / 0 failed / 0 blocked. Covers 11.1, 11.2, 11.3, 11.4. The 11.2 and API
+  tests run against an in-process stand-in for ArmorIQ that applies plan membership and policy
+  and calls the real MCP code; verdicts still come from toVerdict. Live-provider suite (11.5)
+  is not written yet.
+ArmorIQ live: via the API, no UI. allow: get_treasury_balance and execute_payment $4,000
+  (receipt rcpt_04909ec3..., commit plan fc493488-7a32-40a6-b9aa-8e736888f873). block:
+  get_sandbox_messages (PolicyBlockedException, same plan). tamper plan
+  68e37d51-c2a2-4d53-9bbd-3c2ca91de1c3: IntentMismatchException.
+Changed from spec: see the list below.
+UI quality check: n/a (no UI this phase)
+Next risk: the platform policy still lists four tools, so a live commit stops at the inbox read.
+  The happy path and HOLD need the HUMAN TASK (re-scan, allow three tools, hold the large one).
+  Planner, inbox agent and replan are Phase 3 and need LLM_* env values.
+```
+
+```
 PHASE 1 COMPLETE — 2026-10-10 23:22 IST
 Built: packages/shared (money, canonical JSON, hashing, single-use HMAC execution capabilities).
   packages/domain-finance (seed scenario, reference branches, validation, simulation,
@@ -113,3 +136,25 @@ Chosen, installed in the phase that needs them: `better-sqlite3` 13.0.3, `drizzl
   oldest first.
 - **`update_vendor_destination` refuses unconditionally inside the MCP** as well as being blocked by
   policy. It has no code path that writes.
+- **HOLD is a split tool, not an amount rule.** The platform's policy editor can only hold a tool on
+  every call. Payments above the scenario threshold go through `execute_large_payment`, which the
+  policy holds; the MCP refuses large amounts on `execute_payment` and small ones on the large tool.
+- **No registered agent.** The platform's Add AI agent form fails on every method. The SDK works
+  with the API key alone and the policy targets the MCP server.
+- **No users or integration_health tables.** The one CFO comes from env; health is computed on
+  request, and "last verified" is the newest step ArmorIQ decided.
+- **Branches cannot be edited at all**, so "an edit creates a new version" has nothing to test.
+  Changing course means a new branch. The stored steps are re-hashed before signing and before
+  every payment, and a mismatch stops the commit.
+- **The base snapshot is read from the shared database, not through an ArmorIQ-guarded read.** The
+  engine never writes ledger tables (a scan test enforces it); all writes go through the MCP.
+- **A commit is refused as STALE when the books changed since the snapshot**, which is also what
+  stops two branches spending the same cash.
+- **The tamper test signs the approved steps again as its own ArmorIQ plan** instead of borrowing
+  the commit's token, so it can be run any time after authorization and shows up as a separate,
+  clearly named plan on the platform.
+- **A hold nobody approves does not stop the branch.** That payment stays NOT_EXECUTED, the rest
+  run, and the branch ends PARTIALLY_COMMITTED. A block or a tool refusal does stop it.
+- **`/api/demo/fixture-branches`** (admin key) adds the three reference branches, labeled
+  `fixture`, so the commit path can be exercised before the planner exists. `/api/demo/reset` is
+  not an endpoint: `pnpm reset` deletes the database file.

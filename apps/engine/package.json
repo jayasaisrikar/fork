@@ -12,9 +12,13 @@
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.57",
     "@fork/armor-adapter": "workspace:*",
+    "@fork/db": "workspace:*",
+    "@fork/domain-finance": "workspace:*",
+    "@fork/harness": "workspace:*",
     "@fork/shared": "workspace:*",
     "@hono/node-server": "2.1.1",
     "ai": "7.0.116",
+    "drizzle-orm": "0.45.3",
     "hono": "4.13.9",
     "zod": "4.6.5"
   }

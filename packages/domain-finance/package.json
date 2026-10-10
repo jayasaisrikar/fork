@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fork/harness": "workspace:*",
     "@fork/shared": "workspace:*",
     "zod": "4.6.5"
   }

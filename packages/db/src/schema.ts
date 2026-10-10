@@ -68,3 +68,117 @@ export const messages = sqliteTable('messages', {
   receivedAt: text().notNull(),
   untrusted: integer({ mode: 'boolean' }).notNull().default(true),
 });
+
+export const sessions = sqliteTable('sessions', {
+  id: text().primaryKey(),
+  email: text().notNull(),
+  csrfToken: text().notNull(),
+  expiresAt: text().notNull(),
+});
+
+// a frozen copy of the books that every branch in a run is simulated against
+export const snapshots = sqliteTable('snapshots', {
+  id: text().primaryKey(),
+  scenarioId: text().notNull(),
+  hash: text().notNull(),
+  state: text({ mode: 'json' }).$type<unknown>().notNull(),
+  createdAt: text().notNull(),
+});
+
+export const runs = sqliteTable('runs', {
+  id: integer().primaryKey({ autoIncrement: true }),
+  domain: text().notNull(),
+  scenarioId: text().notNull(),
+  baseSnapshotId: text().notNull(),
+  actor: text().notNull(),
+  createdAt: text().notNull(),
+});
+
+export const branches = sqliteTable('branches', {
+  id: text().primaryKey(),
+  runId: integer().notNull(),
+  parentId: text(),
+  version: integer().notNull(),
+  label: text().notNull(),
+  title: text().notNull(),
+  rationale: text().notNull(),
+  source: text({ enum: ['agent', 'fixture', 'replan'] }).notNull(),
+  baseSnapshotHash: text().notNull(),
+  actions: text({ mode: 'json' }).$type<unknown>().notNull(),
+  projection: text({ mode: 'json' }).$type<unknown>(),
+  feasibility: text({ mode: 'json' }).$type<{ ok: boolean; reasons: string[] }>(),
+  risk: text({ mode: 'json' }).$type<unknown>(),
+  approvedPlanHash: text(),
+  status: text().notNull(),
+  createdAt: text().notNull(),
+});
+
+// the exact steps frozen at authorization
+export const branchActions = sqliteTable('branch_actions', {
+  id: integer().primaryKey({ autoIncrement: true }),
+  branchId: text().notNull(),
+  stepIndex: integer().notNull(),
+  tool: text().notNull(),
+  kind: text({ enum: ['read', 'write'] }).notNull(),
+  args: text({ mode: 'json' }).$type<Record<string, string | number>>().notNull(),
+  capability: text(),
+});
+
+export const approvals = sqliteTable('approvals', {
+  id: integer().primaryKey({ autoIncrement: true }),
+  branchId: text().notNull(),
+  approvedPlanHash: text().notNull(),
+  actor: text().notNull(),
+  at: text().notNull(),
+  revokedAt: text(),
+});
+
+export const executions = sqliteTable('executions', {
+  id: text().primaryKey(),
+  runId: integer().notNull(),
+  branchId: text().notNull(),
+  kind: text({ enum: ['commit', 'tamper_test'] }).notNull(),
+  approvedPlanHash: text().notNull(),
+  armorPlanId: text().notNull(),
+  armorPlanHash: text().notNull(),
+  merkleRoot: text().notNull(),
+  tokenId: text().notNull(),
+  expiresAt: text().notNull(),
+  status: text({ enum: ['RUNNING', 'DONE'] }).notNull(),
+  createdAt: text().notNull(),
+});
+
+export const executionSteps = sqliteTable('execution_steps', {
+  id: integer().primaryKey({ autoIncrement: true }),
+  executionId: text().notNull(),
+  runId: integer().notNull(),
+  branchId: text().notNull(),
+  // null for attempts that were never part of the approved plan
+  stepIndex: integer(),
+  origin: text({ enum: ['runner', 'tamper_test', 'agent'] }).notNull(),
+  tool: text().notNull(),
+  kind: text({ enum: ['read', 'write'] }).notNull(),
+  args: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+  requestedArgsHash: text().notNull(),
+  verdict: text(),
+  source: text({ enum: ['armoriq', 'fork', 'mcp'] }),
+  errorClass: text(),
+  message: text(),
+  delegationId: text(),
+  receiptId: text(),
+  latencyMs: integer(),
+  status: text().notNull(),
+  at: text().notNull(),
+});
+
+// append-only, same trigger treatment as the ledger
+export const auditEvents = sqliteTable('audit_events', {
+  id: integer().primaryKey({ autoIncrement: true }),
+  runId: integer(),
+  at: text().notNull(),
+  actor: text().notNull(),
+  source: text({ enum: ['agent', 'fork', 'armoriq', 'mcp', 'ledger', 'human'] }).notNull(),
+  type: text().notNull(),
+  refs: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+  payload: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+});

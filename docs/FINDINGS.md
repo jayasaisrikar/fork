@@ -112,3 +112,13 @@ verified, metadata: { hasToolError } }`. No trace ID. The token carries `tokenId
   block). Note the SDK reports this as a resolved call with `status: 'error'` and
   `metadata.hasToolError: true`, so `toVerdict()` has to look at that flag: ArmorIQ allowed the
   call, the tool refused it.
+- **B16. First full run through the engine API against live ArmorIQ (2026-10-10).** Branch B was
+  authorized and committed with the platform policy still listing only the original four tools.
+  Balance read: allow. Harbor Hosting $4,000: allow, receipt issued, ledger cash $50,000 to $46,000.
+  `get_sandbox_messages`: `PolicyBlockedException` from the proxy, because unlisted tools fall to the
+  policy's default block. The runner stopped there and the branch ended PARTIALLY_COMMITTED with six
+  steps NOT_EXECUTED. A token was issued for a plan containing tools the platform had not scanned
+  yet, so plan signing does not check tool registration.
+- **B17. The labeled tamper test, live.** `update_vendor_destination` with a fresh token for the
+  approved steps: `IntentMismatchException` (block, raised by the SDK). Altered recipient on
+  `execute_payment`: allowed by ArmorIQ, refused by the MCP with `CAPABILITY_INVALID`.
