@@ -105,3 +105,10 @@ verified, metadata: { hasToolError } }`. No trace ID. The token carries `tokenId
   been logged". The SDK's `ArmorIQSession.report()` posts to `/iap/audit`; to be tried in Phase 2.
 - **B14. Holds exist (Intent has a Held Actions queue) but only per tool.** No amount threshold
   has been found anywhere on the platform so far.
+- **B15. S3 re-run against the full MCP.** Same altered-recipient call, now carrying the capability
+  minted for the approved args. ArmorIQ still let it through (the invoke resolved), and the MCP
+  refused it with `CAPABILITY_INVALID`. The ledger did not change. So an altered payment is stopped
+  by FORK's MCP, not by ArmorIQ, and the UI must label it that way (source `mcp`, not an ArmorIQ
+  block). Note the SDK reports this as a resolved call with `status: 'error'` and
+  `metadata.hasToolError: true`, so `toVerdict()` has to look at that flag: ArmorIQ allowed the
+  call, the tool refused it.

@@ -5,6 +5,7 @@ import { appendFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { createArmorClient, type ArmorClient, type IntentToken } from '@fork/armor-adapter';
 import { FINANCE_MCP } from '@fork/shared';
+import { mintCapability, paymentArgsHash } from '@fork/shared/capability';
 
 const FINDINGS = new URL('../../docs/FINDINGS.md', import.meta.url);
 const SCENARIO = 'liquidity-shortfall';
@@ -60,16 +61,24 @@ async function mint(client: ArmorClient, goal: string, steps: Step[], validitySe
   return token;
 }
 
-const pay = (vendorId: string, recipientId: string, dollars: number): Params => ({
-  scenarioId: SCENARIO,
-  vendorId,
-  recipientId,
-  amount: dollars,
-  amountCents: dollars * 100,
-  currency: 'USD',
-  idempotencyKey: randomUUID(),
-  approvedExecutionRef: 'spike',
-});
+// a real capability, minted the way the harness will
+function pay(vendorId: string, recipientId: string, dollars: number): Params {
+  const args = {
+    scenarioId: SCENARIO,
+    vendorId,
+    recipientId,
+    amountCents: dollars * 100,
+    currency: 'USD',
+    idempotencyKey: randomUUID(),
+  };
+  const exp = Math.floor(Date.now() / 1000) + 600;
+  const approvedExecutionRef = mintCapability(
+    env('MCP_CAPABILITY_SECRET'),
+    { runId: 'spike', stepIndex: 0, exp },
+    paymentArgsHash(args),
+  );
+  return { ...args, amount: dollars, approvedExecutionRef };
+}
 
 const call = (client: ArmorClient, action: string, token: IntentToken, params: Params) =>
   client.invokeWithPolicy(FINANCE_MCP, action, token, params, { userEmail });
@@ -137,10 +146,13 @@ const spikes: Spike[] = [
     expected: 'Record the response (are params bound?)',
     run: async () => {
       const client = makeClient();
+      // keep the approved capability, swap who gets paid
+      const planned = pay('v-harbor', 'rcp-harbor', 100);
       const token = await mint(client, 'S3 pay harbor 100', [
-        { action: 'execute_payment', params: pay('v-harbor', 'rcp-harbor', 100) },
+        { action: 'execute_payment', params: planned },
       ]);
-      return call(client, 'execute_payment', token, pay('v-northline', 'rcp-northline', 100));
+      const altered = { ...planned, vendorId: 'v-northline', recipientId: 'rcp-northline' };
+      return call(client, 'execute_payment', token, altered);
     },
   },
   {

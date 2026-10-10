@@ -34,18 +34,20 @@ Next risk: nobody has looked at the platform's Activity/Observability view yet t
 ```
 
 ```
-PHASE 1 STARTED EARLY — 2026-10-10 22:32 IST
-Built: the parts of Phase 1 that do not depend on the spike. packages/shared: money
-  (pro-rata split by largest remainder, USD formatting), canonical JSON, sha256 hash.
-  packages/domain-finance: seed scenario, reference branches A/B/C, validation,
-  simulation, feasibility, risk annotations.
-Tests: 29 passed / 0 failed / 0 blocked (unit only, part of 11.1)
-ArmorIQ live: none yet.
-Changed from spec: cash path steps down once (see below).
+PHASE 1 COMPLETE — 2026-10-10 23:22 IST
+Built: packages/shared (money, canonical JSON, hashing, single-use HMAC execution capabilities).
+  packages/domain-finance (seed scenario, reference branches, validation, simulation,
+  feasibility, risk rules). packages/db (Drizzle schema and migrations for the ledger side,
+  append-only triggers on postings, idempotent seed, double-entry posting helper).
+  apps/finance-mcp with all seven tools and the execute_payment checks in one immediate
+  transaction.
+Tests: 65 passed / 0 failed / 0 blocked. Covers 11.1 and 11.3.
+ArmorIQ live: allowed read through the proxy against the real ledger; altered-recipient payment
+  passed ArmorIQ and was refused by the MCP (CAPABILITY_INVALID), ledger unchanged.
+Changed from spec: see the list below (tables, replay rule, extra overpayment check).
 UI quality check: n/a (no UI this phase)
-Next risk: Phase 0 exit gate is still open, so this work sits ahead of an unpassed gate.
-  Not built yet for Phase 1: db schema and seed, ledger postings, full MCP with
-  capability checks, and the 11.1 / 11.3 tests that need them.
+Next risk: the three new tools (get_vendor, get_sandbox_messages, get_payment_receipt) are not in
+  the platform policy yet, and its default is block. HOLD still has no amount threshold.
 ```
 
 ## History
@@ -97,3 +99,17 @@ Chosen, installed in the phase that needs them: `better-sqlite3` 13.0.3, `drizzl
   Late fees are reported as exposure and are not subtracted from cash, which is what makes branch
   B end at exactly $10,000 and C at exactly $8,000.
 - **Percent late fees round half up to the cent**, on the unpaid part of the invoice.
+- **Only the ledger-side tables exist so far**: scenarios, vendors, invoices, ledger_postings,
+  receipts, used_capabilities, messages. The harness tables (runs, branches, approvals, executions,
+  audit events and the rest) come with the code that uses them in Phase 2.
+- **Reset means deleting the database file.** Postings are append-only at the database level, so
+  there is no in-place wipe.
+- **A retried payment gets its receipt back before the single-use check.** The spec lists the
+  capability check first and idempotency last, which would turn an honest retry into a denial. An
+  exact retry (same capability, same key) returns the original receipt; a used capability with any
+  other key is denied.
+- **`execute_payment` also refuses to pay a vendor more than it is owed.** Not in the spec's list.
+- **`execute_payment` has no invoice id**, so a payment is applied to the vendor's open invoices,
+  oldest first.
+- **`update_vendor_destination` refuses unconditionally inside the MCP** as well as being blocked by
+  policy. It has no code path that writes.

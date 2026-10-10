@@ -34,7 +34,7 @@ function rpcOnly(message: unknown): unknown {
   );
 }
 
-export function serveMcp({ name, port, key, register }: ServeOptions) {
+export function createApp({ name, key, register }: Omit<ServeOptions, 'port'>) {
   if (!key) throw new Error(`${name}: FORK_MCP_KEY is not set, refusing to start`);
   const expected = digest(key);
   const app = new Hono();
@@ -72,13 +72,12 @@ export function serveMcp({ name, port, key, register }: ServeOptions) {
     return transport.handleRequest(c.req.raw, { parsedBody });
   });
 
-  return serve({ fetch: app.fetch, port }, () => console.log(`${name} listening on :${port}/mcp`));
+  return app;
 }
 
-export function logCall(tool: string, params: unknown) {
-  console.log(JSON.stringify({ at: new Date().toISOString(), tool, params }));
-}
-
-export function json(value: unknown) {
-  return { content: [{ type: 'text' as const, text: JSON.stringify(value) }] };
+export function serveMcp(options: ServeOptions) {
+  const app = createApp(options);
+  return serve({ fetch: app.fetch, port: options.port }, () =>
+    console.log(`${options.name} listening on :${options.port}/mcp`),
+  );
 }
