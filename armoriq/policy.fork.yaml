@@ -1,6 +1,6 @@
-# mirrors the policy active on platform.armoriq.ai (created in the policy editor)
+# mirrors the policy active on platform.armoriq.ai
 name: fork-treasury
-version: v0.1.0
+version: v0.2.0
 scope:
   target_type: mcp
   # id of fork-finance-mcp in the registry
@@ -9,11 +9,19 @@ scope:
 default_action: block
 priority: 50
 rules:
+  - tool: get_treasury_balance
+    action: allow
   - tool: list_invoices
+    action: allow
+  - tool: get_vendor
+    action: allow
+  - tool: get_sandbox_messages
+    action: allow
+  - tool: get_payment_receipt
     action: allow
   - tool: execute_payment
     action: allow
-  - tool: get_treasury_balance
-    action: allow
+  - tool: execute_large_payment
+    action: hold
   - tool: update_vendor_destination
     action: block
