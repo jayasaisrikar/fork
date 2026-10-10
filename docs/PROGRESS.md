@@ -34,6 +34,25 @@ Next risk: nobody has looked at the platform's Activity/Observability view yet t
 ```
 
 ```
+PHASE 6 PARTLY DONE — 2026-10-11 01:57 IST
+Built: live-provider suite (tests/live), single-port hosting entry (scripts/serve.ts) and
+  Dockerfile, README, ARCHITECTURE (with threat model), ARMORIQ_SETUP, TEST_EVIDENCE,
+  DEMO_SCRIPT, TRADEOFFS, DESIGN_SYSTEM.
+Tests: 141 unit and integration passed / 0 failed / 5 skipped without the live flag.
+  Browser: 9 passed. Live: 5 passed / 0 failed with RUN_ARMORIQ_LIVE_TESTS=1.
+ArmorIQ live: allow plan f3055a4d-f518-4986-a91d-743400e5219f (balance read, $4,000 payment
+  with receipt); block plan 92bde254-04b8-4665-a653-ed24817c0325 (IntentMismatchException);
+  hold delegation 0385057e-2c55-4974-b097-04200424b5a4 (nothing written while waiting);
+  bad key refused at mint.
+Changed from spec: see docs/TRADEOFFS.md.
+UI quality check: n/a (no new UI)
+Not done, needs the operator: deploy, platform screenshots in docs/proof, the video, a public
+  repository and the submission itself.
+Next risk: nothing is hosted, so the ship gate is not met. The single-port server was only
+  smoke-tested locally; the Docker image has not been built.
+```
+
+```
 PHASE 5 COMPLETE — 2026-10-11 01:45 IST
 Built: /app/runs and /app/runs/[id] (run record: authorization, attempted-versus-approved diff,
   refused, held, receipts with JSON export, three-way reconciliation, chronology, simulation

@@ -1,17 +1,11 @@
+import { serve } from '@hono/node-server';
 import { openDb, seedScenario } from '@fork/db';
 import { FINANCE_MCP } from '@fork/shared';
-import { serveMcp } from './http';
-import { registerTools } from './tools';
-
-const capabilitySecret = process.env.MCP_CAPABILITY_SECRET;
-if (!capabilitySecret) throw new Error('MCP_CAPABILITY_SECRET is not set, refusing to start');
+import { buildMcp } from './main';
 
 const db = openDb();
 seedScenario(db);
+const app = buildMcp(process.env, db);
 
-serveMcp({
-  name: FINANCE_MCP,
-  port: Number(process.env.FINANCE_MCP_PORT ?? 8797),
-  key: process.env.FORK_MCP_KEY,
-  register: (server) => registerTools(server, { db, capabilitySecret }),
-});
+const port = Number(process.env.FINANCE_MCP_PORT ?? 8797);
+serve({ fetch: app.fetch, port }, () => console.log(`${FINANCE_MCP} listening on :${port}/mcp`));

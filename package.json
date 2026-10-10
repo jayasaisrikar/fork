@@ -21,7 +21,9 @@
     "reset": "tsx --env-file-if-exists=.env scripts/reset.ts",
     "test:e2e": "playwright test",
     "agent-check": "tsx --env-file-if-exists=.env scripts/agent-check.ts",
-    "record-run": "tsx --env-file-if-exists=.env scripts/record-run.ts"
+    "record-run": "tsx --env-file-if-exists=.env scripts/record-run.ts",
+    "serve": "tsx --env-file-if-exists=.env scripts/serve.ts",
+    "test:live": "node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run tests/live"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
