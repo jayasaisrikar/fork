@@ -1,90 +1,63 @@
 # Progress
 
-## Phase 0 — Setup (2026-10-10)
+```
+PHASE 0 IN PROGRESS — 2026-10-10 22:29 IST
+Built: pnpm workspace (apps/web, apps/engine, apps/finance-mcp, packages/shared,
+  packages/armor-adapter). Spike-surface fork-finance-mcp with get_treasury_balance,
+  list_invoices, execute_payment (stub, no ledger) and update_vendor_destination (stub).
+  scripts/spike/run.ts for S0-S8. armoriq/policy.fork.yaml. FINDINGS Part A (17 items
+  from reading the installed SDK).
+Tests: 0 automated tests yet. Local smoke check of the MCP passed (401 without key,
+  tools/list and tools/call with it). Spikes S0-S8: blocked, awaiting HUMAN TASK
+  (ArmorIQ key, agent + MCP registration, policy, Amount Field).
+ArmorIQ live: none yet.
+Changed from spec: see below.
+UI quality check: n/a (no UI this phase)
+Next risk: IntentMismatchException is raised inside the SDK before any network call
+  (FINDINGS A8), so the headline BLOCK may not show on the platform. S2 decides.
+```
 
-**Built**
+## History
 
-- pnpm workspace: `apps/web`, `apps/engine`, `mcp/treasury-mcp`, `mcp/payments-mcp`,
-  `packages/shared`, `packages/sim`.
-- Root tooling: TypeScript, ESLint (flat config), Prettier, Vitest.
-- `apps/web`: Next.js App Router skeleton with the Part 7.2 color tokens and the three fonts wired
-  through `next/font`.
-- `apps/engine`: Hono server with `/health`.
-- `.env.example`, `armoriq/policy.fork-executor.yaml` (spec starting point, unmodified).
+The repo started on 2026-10-10 from an earlier spec (two MCP servers, Stripe test mode). It was
+restructured the same day for `FORK_SPEC_FINAL.md`: one MCP, no Stripe, `armor-adapter` as the
+only SDK importer.
 
-**Definition of done**
+## Pinned versions
 
-- [x] `pnpm build` passes on the empty apps.
-- [x] `pnpm lint` and `pnpm format:check` pass.
-- [x] Env documented in `.env.example`.
-- [ ] HUMAN TASK: ArmorIQ account, API key, agent `fork-executor` registered.
-- [ ] HUMAN TASK: Stripe account in test mode with Connect enabled.
+Newest release published on or before 2026-09-26. `minimumReleaseAge` in `pnpm-workspace.yaml`
+applies the same 14-day rule to transitive dependencies.
 
-**Pinned versions** (newest release published on or before 2026-09-26)
+| Package                            | Version | Package                   | Version |
+| ---------------------------------- | ------- | ------------------------- | ------- |
+| next                               | 16.3.6  | react / react-dom         | 19.3.0  |
+| tailwindcss / @tailwindcss/postcss | 4.3.3   | @xyflow/react             | 12.12.0 |
+| recharts                           | 3.10.1  | motion                    | 13.4.4  |
+| sonner                             | 2.0.8   | cmdk                      | 1.1.1   |
+| lucide-react                       | 1.48.0  | hono                      | 4.13.9  |
+| @hono/node-server                  | 2.1.1   | zod                       | 4.6.5   |
+| ai                                 | 7.0.116 | @ai-sdk/openai-compatible | 3.0.57  |
+| @modelcontextprotocol/sdk          | 1.30.1  | @armoriq/sdk              | 0.6.10  |
+| typescript                         | 6.0.3   | vitest                    | 5.0.2   |
+| tsx                                | 4.23.15 | eslint                    | 10.11.0 |
+| typescript-eslint                  | 8.70.1  | prettier                  | 3.9.9   |
+| @types/node                        | 26.6.3  |                           |         |
 
-| Package                   | Version | Package                   | Version |
-| ------------------------- | ------- | ------------------------- | ------- |
-| next / eslint-config-next | 16.3.6  | react / react-dom         | 19.3.0  |
-| tailwindcss / postcss     | 4.3.3   | @xyflow/react             | 12.12.0 |
-| recharts                  | 3.10.1  | motion                    | 13.4.4  |
-| sonner                    | 2.0.8   | cmdk                      | 1.1.1   |
-| lucide-react              | 1.48.0  | hono                      | 4.13.9  |
-| @hono/node-server         | 2.1.1   | zod                       | 4.6.5   |
-| ai                        | 7.0.116 | @ai-sdk/openai-compatible | 3.0.57  |
-| @modelcontextprotocol/sdk | 1.30.1  | @armoriq/sdk              | 0.6.10  |
-| stripe                    | 22.6.2  | typescript                | 6.0.3   |
-| vitest                    | 5.0.2   | tsx                       | 4.23.15 |
-| eslint                    | 10.11.0 | typescript-eslint         | 8.70.1  |
-| prettier                  | 3.9.9   | @types/node               | 26.6.3  |
+Chosen, installed in the phase that needs them: `better-sqlite3` 13.0.3, `drizzle-orm` 0.45.3,
+`drizzle-kit` 0.31.11, `@types/better-sqlite3` 9.6.0, `@playwright/test` 1.63.0,
+`@axe-core/playwright` 4.13.0. TanStack Table is not pinned yet.
 
-Chosen but not installed until the phase that uses them: `better-sqlite3` 13.0.3,
-`drizzle-orm` 0.45.3, `drizzle-kit` 0.31.11, `@types/better-sqlite3` 9.6.0 (Phase 2/3),
-`stripe` 22.6.2 (Phase 1/2), `@playwright/test` 1.63.0, `@axe-core/playwright` 4.13.0 (Phase 4).
+## Changed from spec
 
-**Changes from the spec, and why**
-
-- **Node 22.12+ instead of Node 20+.** `ai` 7 and `@ai-sdk/openai-compatible` 3 require Node >= 22;
-  Vitest 5 requires `^22.12 || ^24 || >=26`. `.nvmrc` pins 24. Node 25 is not supported by Vitest 5.
-- **TypeScript 6.0.3, not 7.0.2.** `typescript-eslint` 8.70 supports `typescript <6.1.0`.
-- **14-day rule is enforced by pnpm**, not only by hand: `minimumReleaseAge: 20160` in
-  `pnpm-workspace.yaml` applies it to transitive dependencies too.
-- **Workspace packages export TypeScript source** (`exports: ./src/index.ts`); `build` for
-  non-web workspaces is `tsc --noEmit`. The engine and MCP servers run with `tsx`, and Next
-  compiles `@fork/shared` through `transpilePackages`. Simpler than per-package emit and
-  watch; nothing is published.
-- **No `eslint-config-next`.** Root ESLint uses `@eslint/js` + `typescript-eslint` only, to keep one
-  config for the whole repo.
-- `FORK_BUILD_SPEC.md` is not in the repo yet (it was pasted into the session, not saved as a file).
-
-## Phase 1 — Spike (in progress, 2026-10-10)
-
-**Built**
-
-- `packages/mcp-http`: one helper that serves an MCP server over stateless Streamable HTTP at
-  `/mcp` behind the `X-Fork-Secret` check. It refuses to start without `FORK_MCP_SECRET`.
-- `mcp/treasury-mcp` (spike surface): `get_balance`, `list_vendors` on fixed data.
-- `mcp/payments-mcp` (spike surface): `pay_vendor` and `send_wire`, both stubs that move no money.
-- `scripts/spike/run.ts`: S0–S8 from the spec plus S9 (same action invoked on the wrong MCP).
-  Run with `pnpm spike` or `pnpm spike S1 S2`. Each run appends a row to `docs/FINDINGS.md`.
-- `docs/FINDINGS.md` Part A: seventeen findings from reading the installed SDK.
-
-**Checked locally**
-
-- [x] `pnpm build`, `pnpm lint`, `pnpm format:check`.
-- [x] Both MCP servers: 401 without or with a wrong secret, `tools/list` and `tools/call` work with
-      the right one, invalid input is rejected by the schema.
-
-**Not done**
-
-- [ ] S0–S9 have not run. They need the HUMAN TASKs: API key, agent, both MCPs registered over
-      HTTPS, policy pasted, Amount Field configured.
-- [ ] Phase 1 DoD (S0, S1, S2, S4, S5 pass) is therefore open.
-
-**Changes from the spec, and why**
-
-- **Extra package `packages/mcp-http`.** The secret check is security code; one copy, not two.
-- **One spike runner instead of one file per spike.** Same coverage, shared setup.
-- **S9 added.** The SDK matches plan steps by action name only (FINDINGS A7), so the attack
-  replay's "tool on the wrong MCP" case needs its own live answer.
-- **Spikes call `invokeWithPolicy` everywhere**, not `invoke`, because only `invokeWithPolicy`
-  turns policy responses into `PolicyBlockedException` / `PolicyHoldException` (FINDINGS A15).
+- **Node 22.12+ (`.nvmrc` pins 24).** `ai` 7 needs Node 22+, Vitest 5 needs
+  `^22.12 || ^24 || >=26`. Node 25 does not work with Vitest 5.
+- **TypeScript 6.0.3, not 7.** `typescript-eslint` 8.70 supports `typescript <6.1.0`.
+- **Packages export TypeScript source.** `build` outside the web app is `tsc --noEmit`; the engine
+  and MCP run with `tsx`. Nothing is published, so there is no emit step to keep in sync.
+- **`harness`, `domain-finance`, `db`, `domain-portfolio` do not exist yet.** They are created in
+  the phase that fills them, not as empty shells.
+- **`armor-adapter` exists already, with only a client factory.** The spike needs the SDK, and the
+  rule is that only this package imports it.
+- **Spikes use `invokeWithPolicy` for every call**, because plain `invoke` does not turn policy
+  responses into typed exceptions (FINDINGS A15).
+- **`FORK_SPEC_FINAL.md` is not in the repo.** It was pasted into the session, not saved as a file.

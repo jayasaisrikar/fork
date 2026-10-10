@@ -1,11 +1,11 @@
 # FORK
 
-**Branch the decision. Govern the execution.**
+**Explore every outcome. Commit only one.**
 
-FORK is an execution harness for financial AI agents, built for ArmorIQ's Flow State 2026
-hackathon. A strategist agent forks a payment decision into branches, each branch is simulated
-against a sandbox copy of the books, and a human signs one. An executor agent then carries out
-only that branch, with every tool call checked by ArmorIQ.
+FORK is a branch-and-commit execution harness for AI agents, built for ArmorIQ's Flow State 2026
+hackathon. A planner agent proposes branches, FORK simulates each one against the same frozen
+snapshot of the books, and a human authorizes one. A deterministic runner then commits only that
+branch through an MCP server, with ArmorIQ checking every call.
 
 Work in progress. See `docs/PROGRESS.md` for status and `docs/FINDINGS.md` for what the ArmorIQ
 SDK actually does.
@@ -21,4 +21,4 @@ cp .env.example .env   # then fill in the values
 pnpm build
 ```
 
-All payments are Stripe test mode. Kettle & Pine Coffee Roasters is fictional.
+Fictional company. Sandbox ledger. No real payments.

@@ -17,8 +17,7 @@ const archivo = Archivo({ subsets: ['latin'], axes: ['wdth'], variable: '--font-
 
 export const metadata: Metadata = {
   title: 'FORK',
-  description:
-    'Agents can explore any financial future. Only the branch a human signed can move money.',
+  description: 'Explore every outcome. Commit only one.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

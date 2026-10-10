@@ -3,9 +3,6 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": {
-    ".": "./src/index.ts"
-  },
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
@@ -14,9 +11,8 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.57",
-    "@armoriq/sdk": "0.6.10",
+    "@fork/armor-adapter": "workspace:*",
     "@fork/shared": "workspace:*",
-    "@fork/sim": "workspace:*",
     "@hono/node-server": "2.1.1",
     "ai": "7.0.116",
     "hono": "4.13.9",

@@ -1,6 +1,5 @@
 @import 'tailwindcss';
 
-/* Spec 7.2. Components use these tokens only; never a raw hex. */
 :root {
   --bg: #f4f5f3;
   --surface: #ffffff;
@@ -9,10 +8,12 @@
   --text: #121614;
   --muted: #58625d;
   --accent: #0e6e64;
+  --sim: #46598a;
   --allow: #167a47;
   --hold: #9a6200;
   --block: #b8301c;
-  --error: #5e4b8b;
+  --fork-reject: #6b3f86;
+  --unknown: #58625d;
 }
 
 [data-theme='dark'] {
@@ -23,10 +24,12 @@
   --text: #e4eae7;
   --muted: #8a9590;
   --accent: #3bbfae;
+  --sim: #8fa3c8;
   --allow: #46c487;
   --hold: #e3a93a;
   --block: #ef6a55;
-  --error: #b39ddb;
+  --fork-reject: #c9a0dc;
+  --unknown: #8a9590;
 }
 
 @theme inline {
@@ -37,10 +40,12 @@
   --color-text: var(--text);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-sim: var(--sim);
   --color-allow: var(--allow);
   --color-hold: var(--hold);
   --color-block: var(--block);
-  --color-error: var(--error);
+  --color-fork-reject: var(--fork-reject);
+  --color-unknown: var(--unknown);
   --font-sans: var(--font-plex-sans);
   --font-mono: var(--font-plex-mono);
   --font-display: var(--font-archivo);

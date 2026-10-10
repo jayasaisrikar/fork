@@ -1,8 +1,5 @@
-/** Money is integer cents everywhere inside FORK. Dollars exist only at the payments-mcp boundary. */
+// integer cents everywhere, dollars only at the MCP amount field and in the UI
 export type Cents = number;
 
-export const MCP = {
-  treasury: 'treasury-mcp',
-  payments: 'payments-mcp',
-} as const;
-export type McpName = (typeof MCP)[keyof typeof MCP];
+// must match the name registered on platform.armoriq.ai
+export const FINANCE_MCP = 'fork-finance-mcp';

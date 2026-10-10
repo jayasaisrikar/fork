@@ -3,5 +3,5 @@ node_modules
 dist
 pnpm-lock.yaml
 docs/screenshots
-armoriq/plan-examples
-FORK_BUILD_SPEC.md
+docs/proof
+FORK_SPEC_FINAL.md
