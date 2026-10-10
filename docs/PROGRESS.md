@@ -17,6 +17,21 @@ Next risk: IntentMismatchException is raised inside the SDK before any network c
   (FINDINGS A8), so the headline BLOCK may not show on the platform. S2 decides.
 ```
 
+```
+PHASE 1 STARTED EARLY — 2026-10-10 22:32 IST
+Built: the parts of Phase 1 that do not depend on the spike. packages/shared: money
+  (pro-rata split by largest remainder, USD formatting), canonical JSON, sha256 hash.
+  packages/domain-finance: seed scenario, reference branches A/B/C, validation,
+  simulation, feasibility, risk annotations.
+Tests: 29 passed / 0 failed / 0 blocked (unit only, part of 11.1)
+ArmorIQ live: none yet.
+Changed from spec: cash path steps down once (see below).
+UI quality check: n/a (no UI this phase)
+Next risk: Phase 0 exit gate is still open, so this work sits ahead of an unpassed gate.
+  Not built yet for Phase 1: db schema and seed, ledger postings, full MCP with
+  capability checks, and the 11.1 / 11.3 tests that need them.
+```
+
 ## History
 
 The repo started on 2026-10-10 from an earlier spec (two MCP servers, Stripe test mode). It was
@@ -61,3 +76,8 @@ Chosen, installed in the phase that needs them: `better-sqlite3` 13.0.3, `drizzl
 - **Spikes use `invokeWithPolicy` for every call**, because plain `invoke` does not turn policy
   responses into typed exceptions (FINDINGS A15).
 - **`FORK_SPEC_FINAL.md` is not in the repo.** It was pasted into the session, not saved as a file.
+- **The 14-day cash path steps down once.** Every payment in a branch goes out today and the
+  scenario has no incoming cash, so the path is opening cash on day 0 and cash-after from day 1.
+  Late fees are reported as exposure and are not subtracted from cash, which is what makes branch
+  B end at exactly $10,000 and C at exactly $8,000.
+- **Percent late fees round half up to the cent**, on the unpaid part of the invoice.

@@ -1,0 +1,17 @@
+{
+  "name": "@fork/domain-finance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fork/shared": "workspace:*",
+    "zod": "4.6.5"
+  }
+}
