@@ -25,7 +25,7 @@ export function buildEngine(env: Env, db: Db, options: { mcpInProcess?: boolean 
         apiKey: env.ARMORIQ_API_KEY!,
         agentId: env.ARMORIQ_AGENT_ID || undefined,
         userId: env.ARMORIQ_USER_ID || undefined,
-        mcpName: FINANCE_MCP,
+        mcpName: env.FORK_MCP_NAME ?? FINANCE_MCP,
         mcpKey: env.FORK_MCP_KEY!,
         userEmail: env.CFO_EMAIL!,
         requesterEmail: env.ARMORIQ_REQUESTER_EMAIL || 'fork-agent@kettleandpine.test',
