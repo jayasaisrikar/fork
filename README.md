@@ -9,8 +9,6 @@ server, with ArmorIQ checking every call against the signed plan and the company
 
 Built for ArmorIQ's Flow State 2026 hackathon. Fictional company. Sandbox ledger. No real payments.
 
-![The decision studio after a plan has been executed](docs/screenshots/studio-completed-light-1440.png)
-
 ## What happens in a run
 
 Kettle & Pine Supply Co. has $50,000 in cash and $68,000 of invoices due this week.

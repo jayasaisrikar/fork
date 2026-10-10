@@ -17,5 +17,6 @@ next-env.d.ts
 
 test-results
 playwright-report
+docs/screenshots
 .DS_Store
 .next-e2e

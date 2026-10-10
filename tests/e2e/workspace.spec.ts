@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
 const ENGINE = 'http://localhost:8791';
-const SHOTS = 'docs/screenshots';
+const SHOTS = 'test-results/screenshots';
 
 async function signIn(page: Page) {
   await page.goto('/app');
