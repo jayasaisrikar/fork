@@ -214,23 +214,78 @@ export function createApp(deps: AppDeps) {
     });
   });
 
+  // filter, page and export the evidence. json and csv downloads carry the same rows as the page.
   app.get('/api/audit', (c) => {
-    const { run, source, type, before } = c.req.query();
-    const limit = Math.min(Number(c.req.query('limit') ?? 100) || 100, 500);
+    const { run, source, type, verdict, q, before, format } = c.req.query();
+    const exporting = format === 'csv' || format === 'json';
+    const limit = exporting ? 5000 : Math.min(Number(c.req.query('limit') ?? 100) || 100, 500);
     const filters: SQL[] = [];
     if (run) filters.push(eq(auditEvents.runId, runId(run)));
     if (source) filters.push(eq(auditEvents.source, source as AuditEvent['source']));
     if (type) filters.push(like(auditEvents.type, `${type}%`));
     if (before) filters.push(lt(auditEvents.id, Number(before)));
+
+    const needle = q?.toLowerCase();
+    const matches = (event: AuditEvent) =>
+      (!verdict || event.payload.verdict === verdict) &&
+      (!needle ||
+        JSON.stringify([event.type, event.actor, event.refs, event.payload])
+          .toLowerCase()
+          .includes(needle));
     const events = db
       .select()
       .from(auditEvents)
       .where(and(...filters))
       .orderBy(desc(auditEvents.id))
-      .limit(limit)
-      .all();
+      .limit(verdict || needle ? 5000 : limit)
+      .all()
+      .filter(matches)
+      .slice(0, limit);
+
+    if (format === 'json') {
+      c.header('content-disposition', 'attachment; filename="fork-audit.json"');
+      return c.json({ exportedAt: now().toISOString(), events });
+    }
+    if (format === 'csv') {
+      const cell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const header = [
+        'id',
+        'at',
+        'source',
+        'actor',
+        'run',
+        'type',
+        'tool',
+        'verdict',
+        'error_class',
+        'status',
+        'refs',
+      ];
+      const rows = events.map((event) =>
+        [
+          event.id,
+          event.at,
+          event.source,
+          event.actor,
+          event.runId,
+          event.type,
+          event.payload.tool,
+          event.payload.verdict,
+          event.payload.errorClass,
+          event.type.startsWith('step.') ? event.type.slice(5) : '',
+          JSON.stringify(event.refs),
+        ]
+          .map(cell)
+          .join(','),
+      );
+      c.header('content-type', 'text/csv; charset=utf-8');
+      c.header('content-disposition', 'attachment; filename="fork-audit.csv"');
+      return c.body([header.join(','), ...rows].join('\n'));
+    }
     return c.json({ events, nextBefore: events.length === limit ? events.at(-1)?.id : null });
   });
+
+  app.get('/api/branches/:id/replay', (c) => c.json(engine.replaySimulation(c.req.param('id'))));
 
   app.get('/api/health', async (c) => {
     const armor = await deps.armorHealth();

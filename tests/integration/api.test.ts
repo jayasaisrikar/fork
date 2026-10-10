@@ -173,3 +173,62 @@ describe('engine API', () => {
     expect(cashCents(w.db, SCENARIO)).toBe(5_000_000);
   });
 });
+
+describe('evidence', () => {
+  it('reconciles approved, executed and ledger totals, and exports the same rows it lists', async () => {
+    const w = world();
+    const api = client(w);
+    await api.login();
+    const { run, b } = w.simulated();
+    w.engine.authorizeBranch(b.id, CFO.email);
+    await w.engine.tamperTest(b.id, CFO.email);
+    await w.engine.settled((await w.engine.commitBranch(b.id, CFO.email)).id);
+
+    const view = (await api.call('GET', `/api/runs/${run.id}`)).body;
+    expect(view.reconciliation).toEqual([
+      {
+        executionId: expect.any(String),
+        branchId: b.id,
+        authorizedCents: 4_000_000,
+        executedCents: 4_000_000,
+        ledgerCents: 4_000_000,
+      },
+    ]);
+    expect(view.receipts).toHaveLength(6);
+
+    const blocked = (await api.call('GET', `/api/audit?run=${run.id}&verdict=block`)).body.events;
+    expect(blocked).toHaveLength(1);
+    expect(blocked[0].payload).toMatchObject({
+      tool: 'update_vendor_destination',
+      errorClass: 'IntentMismatchException',
+    });
+    expect((await api.call('GET', `/api/audit?q=CAPABILITY_INVALID`)).body.events).toHaveLength(1);
+
+    const csv = await (
+      await w.app.request(`/api/audit?run=${run.id}&verdict=block&format=csv`)
+    ).text();
+    expect(csv.split('\n')).toHaveLength(2);
+    expect(csv).toContain('"update_vendor_destination","block","IntentMismatchException"');
+    const json = await (await w.app.request(`/api/audit?run=${run.id}&format=json`)).json();
+    expect(JSON.stringify(json)).not.toContain('approvedExecutionRef');
+
+    const replay = (await api.call('GET', `/api/branches/${b.id}/replay`)).body;
+    expect(replay).toMatchObject({
+      matchesStored: true,
+      projection: { cashAfterCents: 1_000_000 },
+    });
+    expect(cashCents(w.db, SCENARIO)).toBe(1_000_000);
+  });
+
+  it('shows a partial commit as a mismatch between approved and executed, not as a clean run', async () => {
+    const w = world({ approveHolds: false });
+    const { run, b } = w.simulated();
+    w.engine.authorizeBranch(b.id, CFO.email);
+    await w.engine.settled((await w.engine.commitBranch(b.id, CFO.email)).id);
+    expect(w.engine.getRun(run.id).reconciliation[0]).toMatchObject({
+      authorizedCents: 4_000_000,
+      executedCents: 2_800_000,
+      ledgerCents: 2_800_000,
+    });
+  });
+});

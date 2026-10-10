@@ -19,7 +19,8 @@
     "spike": "tsx --env-file-if-exists=.env scripts/spike/run.ts",
     "api-run": "tsx --env-file-if-exists=.env scripts/api-run.ts",
     "reset": "tsx --env-file-if-exists=.env scripts/reset.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "agent-check": "tsx --env-file-if-exists=.env scripts/agent-check.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

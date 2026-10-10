@@ -245,6 +245,54 @@ export function createEngine(deps: EngineDeps) {
   function getRun(runId: number) {
     const run = runOrThrow(runId);
     const snapshot = db.select().from(snapshots).where(eq(snapshots.id, run.baseSnapshotId)).get();
+    const stepRows = db
+      .select()
+      .from(executionSteps)
+      .where(eq(executionSteps.runId, runId))
+      .orderBy(asc(executionSteps.id))
+      .all();
+    const receiptIds = new Set(
+      stepRows.map((step) => step.receiptId).filter((id): id is string => Boolean(id)),
+    );
+    const receiptRows = db
+      .select()
+      .from(schema.receipts)
+      .all()
+      .filter((receipt) => receiptIds.has(receipt.id));
+    const cashPostings = db
+      .select()
+      .from(schema.ledgerPostings)
+      .where(eq(schema.ledgerPostings.account, 'cash'))
+      .all();
+
+    // three numbers that have to agree: what was approved, what got a receipt, what left the ledger
+    const reconciliation = db
+      .select()
+      .from(executions)
+      .where(and(eq(executions.runId, runId), eq(executions.kind, 'commit')))
+      .all()
+      .map((execution) => {
+        const mine = stepRows.filter(
+          (step) => step.executionId === execution.id && step.origin === 'runner',
+        );
+        const paid = receiptRows.filter((receipt) =>
+          mine.some((step) => step.receiptId === receipt.id),
+        );
+        const paidIds = new Set(paid.map((receipt) => receipt.id));
+        return {
+          executionId: execution.id,
+          branchId: execution.branchId,
+          authorizedCents: storedSteps(execution.branchId).reduce(
+            (sum, row) => sum + (row.kind === 'write' ? Number(row.args.amountCents) : 0),
+            0,
+          ),
+          executedCents: paid.reduce((sum, receipt) => sum + receipt.amountCents, 0),
+          ledgerCents: -cashPostings
+            .filter((posting) => posting.receiptId && paidIds.has(posting.receiptId))
+            .reduce((sum, posting) => sum + posting.amountCents, 0),
+        };
+      });
+
     return {
       run,
       snapshot,
@@ -291,7 +339,10 @@ export function createEngine(deps: EngineDeps) {
         .from(executionSteps)
         .where(eq(executionSteps.runId, runId))
         .orderBy(asc(executionSteps.id))
-        .all(), // the sandbox inbox, always untrusted
+        .all(),
+      receipts: receiptRows,
+      reconciliation,
+      // the sandbox inbox, always untrusted
       messages: db
         .select()
         .from(inboxMessages)
@@ -1192,6 +1243,20 @@ export function createEngine(deps: EngineDeps) {
     return { execution, steps: results };
   }
 
+  // evaluates the stored branch against the stored snapshot again. it reads, computes and returns.
+  function replaySimulation(branchId: string) {
+    const branch = branchOrThrow(branchId);
+    const state = snapshotState(branch);
+    const projection = financeAdapter.simulate(state, branch.actions as Allocation[]);
+    return {
+      projection,
+      feasibility: financeAdapter.feasibility(state, projection),
+      matchesStored: branch.projection
+        ? hashCanonical(projection) === hashCanonical(branch.projection)
+        : null,
+    };
+  }
+
   function timeline(runId: number, afterId = 0): AuditEvent[] {
     return db
       .select()
@@ -1218,6 +1283,7 @@ export function createEngine(deps: EngineDeps) {
     resumeInFlight,
     tamperTest: guarded('tamperTest', tamperTest),
     timeline,
+    replaySimulation,
     // resolves when a commit has fully finished. used by tests and by graceful shutdown.
     settled: (executionId: string) => inFlight.get(executionId) ?? Promise.resolve(),
   };

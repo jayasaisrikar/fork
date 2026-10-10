@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { serve } from '@hono/node-server';
 import { createGateway } from '@fork/armor-adapter';
 import { openDb, seedScenario } from '@fork/db';
@@ -51,6 +52,7 @@ const models = llmReady
       apiKey: env.LLM_API_KEY!,
       plannerModel: env.LLM_MODEL_PLANNER!,
       inboxModel: env.LLM_MODEL_INBOX!,
+      sessionId: env.LLM_BASE_URL!.includes('opencode.ai') ? `fork-${randomUUID()}` : undefined,
     })
   : null;
 
