@@ -122,3 +122,10 @@ verified, metadata: { hasToolError } }`. No trace ID. The token carries `tokenId
 - **B17. The labeled tamper test, live.** `update_vendor_destination` with a fresh token for the
   approved steps: `IntentMismatchException` (block, raised by the SDK). Altered recipient on
   `execute_payment`: allowed by ArmorIQ, refused by the MCP with `CAPABILITY_INVALID`.
+- **B18. The Inventory page's tool list is stale; the backend is not.** After the MCP grew from
+  four tools to eight, Inventory kept showing "4 of 4" and "Tools discovered 0" through several
+  re-scans. The API (`/mcp/tools/<name>`, `/iap/sdk/bootstrap`) returns all eight. Trust the API and
+  the policy editor, not that page.
+- **B19. Agent registration per the docs** (`/platform/agents/add-agent`) wants the agent's base URL
+  and detects its framework as A2A or MCP. The live wizard differs from the docs and has no URL
+  field in the "Attached to MCP server" flow, which is why that flow cannot finish.
