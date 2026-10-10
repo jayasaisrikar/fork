@@ -34,6 +34,38 @@ Next risk: nobody has looked at the platform's Activity/Observability view yet t
 ```
 
 ```
+PHASE 4 COMPLETE — 2026-10-11 01:10 IST
+Built: /app workspace. Top bar with health popover, stage stepper with one primary action,
+  books and inbox, branch graph (custom base, branch and dead-end nodes, step dots on the
+  edge, list alternative), compare (table, cash path, diff), inspector (rationale, risk rules,
+  frozen payments, authorize dialog, seal, hold card), execution rail (TanStack Table, raw
+  events, labeled security tests, replan), verdict notifier, command palette, CFO sign-in.
+  Engine: run list, inbox in the run view, a fixture planner switch for tests and rehearsal.
+Tests: 139 unit and integration passed / 0 failed. Browser: 4 passed (core journey, hostile
+  message and replan, ArmorIQ not configured, phone). axe: zero serious or critical on the
+  workspace. Blocked: branches from a real model (no usable provider yet).
+ArmorIQ live: nothing new. The browser tests use the in-process stand-in for ArmorIQ.
+Changed from spec: see the list below.
+UI quality check (workspace, 1440 and 390, both themes):
+  Centered text beyond single-line labels? no
+  Gradient, glow, blur, glass, shimmer? no. The "Rejected by FORK" hatch is hard-edged stripes.
+  Emoji? no
+  Icon-on-top feature grids? no
+  Inter, Geist, Space Grotesk or a system font? no
+  Money in a proportional font or left-aligned in a table? no
+  Verdict color on a non-verdict element? no. Negative cash uses the block color, as specified.
+  Placeholder copy? no
+  A number not traceable to the snapshot, simulator, ledger or ArmorIQ? no
+  Could it pass for a generic AI SaaS dashboard? no
+  10-second read of proposed, authorized, executed, refused? yes
+  Both themes designed? yes
+  Visible focus everywhere? yes
+  Mobile completes the task? yes (browser test commits branch B at 390px)
+Next risk: Runs, Audit and Lab tabs and "View run record" are disabled with reasons until
+  Phase 5. No real-model run yet. The live happy path has only been driven by script, not UI.
+```
+
+```
 PHASE 3 BUILT, EXIT GATE OPEN — 2026-10-11 00:43 IST
 Built: apps/engine/src/agents: planner (generateObject, zod, up to three attempts with the
   harness's rejection fed back), inbox agent (generateText with two guarded tools), model
@@ -191,3 +223,16 @@ Chosen, installed in the phase that needs them: `better-sqlite3` 13.0.3, `drizzl
 - **`/api/demo/fixture-branches`** (admin key) adds the three reference branches, labeled
   `fixture`, so the commit path can be exercised before the planner exists. `/api/demo/reset` is
   not an endpoint: `pnpm reset` deletes the database file.
+- **No shadcn CLI and no Cult UI component.** The workspace uses Radix primitives (the same base
+  shadcn copies in) styled to the tokens, and the verdict notifier is our own small component.
+  Fewer moving parts, same behavior.
+- **The cash path has no fill under the selected line.** Lines only.
+- **Desktop workspace scrolls a little at 900px tall.** The graph gets a fixed 420px so branches
+  stay readable; the execution rail sits just below the fold line instead of squeezing the graph.
+- **The graph hangs branches side by side from one trunk** instead of stacking them, because the
+  canvas is wide and short.
+- **Browser tests run against `tests/e2e/server.ts`**: real engine and MCP code with an in-memory
+  ledger, the ArmorIQ stand-in, a fixture planner and a scripted inbox agent. Holds are approved
+  by the stand-in. A live-ArmorIQ browser run needs a person to approve the hold.
+- **A held step now carries verdict `hold` while it waits.** The adapter passes the verdict it
+  got from `toVerdict` along with the hold, so the UI never writes one itself.

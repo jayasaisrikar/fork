@@ -143,6 +143,7 @@ export function createApp(deps: AppDeps) {
   app.post('/api/runs', (c) =>
     c.json(engine.getRun(engine.createRun(c.get('session').email).id), 201),
   );
+  app.get('/api/runs', (c) => c.json({ runs: engine.listRuns() }));
   app.get('/api/runs/:id', (c) => c.json(engine.getRun(runId(c.req.param('id')))));
 
   app.post('/api/runs/:id/propose', async (c) =>
@@ -233,7 +234,8 @@ export function createApp(deps: AppDeps) {
 
   app.get('/api/health', async (c) => {
     const armor = await deps.armorHealth();
-    let mcpReachable = false;
+    // no URL means the MCP runs inside this process, as it does in tests
+    let mcpReachable = !deps.mcpHealthUrl;
     if (deps.mcpHealthUrl) {
       mcpReachable = await fetch(deps.mcpHealthUrl, { signal: AbortSignal.timeout(3000) })
         .then((response) => response.ok)

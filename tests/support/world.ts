@@ -24,7 +24,8 @@ const DEFAULT_POLICY: Policy = {
 export function world(
   policy: Policy = {},
   configured = true,
-  agents: Pick<EngineDeps, 'planner' | 'inbox'> = {},
+  agents: Pick<EngineDeps, 'planner' | 'inbox' | 'plannerSource'> = {},
+  webOrigin?: string,
 ) {
   const db = openDb(':memory:');
   seedScenario(db);
@@ -44,6 +45,7 @@ export function world(
       gatewayMissingReason: 'ArmorIQ is not configured. Nothing can be committed.',
       planner: agents.planner,
       inbox: agents.inbox,
+      plannerSource: agents.plannerSource,
     });
 
   const gateway = gatewayFor();
@@ -53,6 +55,7 @@ export function world(
     engine,
     cfo: CFO,
     adminKey: ADMIN_KEY,
+    webOrigin,
     armorHealth: async () => ({ configured, reachable: configured, tools: [] }),
   });
 

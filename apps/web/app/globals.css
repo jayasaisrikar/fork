@@ -56,3 +56,62 @@ body {
   color: var(--text);
   font-family: var(--font-plex-sans), sans-serif;
 }
+
+* {
+  border-color: var(--line);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@utility label {
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+@utility money {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* stripes mark what FORK itself refused */
+@utility hatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--fork-reject) 18%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+}
+
+.react-flow .react-flow__attribution {
+  background: var(--surface);
+  font-size: 10px;
+}
+.react-flow .react-flow__attribution a {
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes rail-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.rail-row {
+  animation: rail-in 150ms ease-out;
+}

@@ -91,10 +91,11 @@ export function fakeGateway(options: FakeOptions) {
         return decide(new PolicyBlockedException(`Tool '${step.action}' denied by policy`));
       }
       if (options.hold?.includes(step.action)) {
-        dispatchOptions.onHold?.({ reason: 'held by policy' });
-        if (!dispatchOptions.waitForApproval)
-          return decide(new PolicyHoldException('Action held for approval'));
-        dispatchOptions.onHold?.({ delegationId: 'dlg-1', reason: 'held by policy' });
+        const held = new PolicyHoldException('Action held for approval');
+        const { verdict } = toVerdict({ thrown: held });
+        dispatchOptions.onHold?.({ verdict, reason: 'held by policy' });
+        if (!dispatchOptions.waitForApproval) return decide(held);
+        dispatchOptions.onHold?.({ verdict, delegationId: 'dlg-1', reason: 'held by policy' });
         if (!options.approveHolds)
           return decide(new DelegationException('Delegation rejected', undefined, 'dlg-1'));
       }

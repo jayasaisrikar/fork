@@ -94,6 +94,8 @@ export interface EngineDeps {
     request: PlannerRequest,
     check: (proposal: BranchProposal) => string[],
   ) => Promise<BranchProposal>;
+  // 'fixture' when the planner is the scripted test double, so the UI can say so
+  plannerSource?: 'agent' | 'fixture';
   inbox?: (messages: InboxMessage[], actions: InboxActions) => Promise<{ text: string }>;
 }
 
@@ -230,6 +232,10 @@ export function createEngine(deps: EngineDeps) {
     return run;
   }
 
+  function listRuns() {
+    return db.select().from(runs).orderBy(desc(runs.id)).limit(50).all();
+  }
+
   function runOrThrow(runId: number) {
     const run = db.select().from(runs).where(eq(runs.id, runId)).get();
     if (!run) throw new ApiError('NOT_FOUND', 404, `No run ${runId}`);
@@ -285,6 +291,12 @@ export function createEngine(deps: EngineDeps) {
         .from(executionSteps)
         .where(eq(executionSteps.runId, runId))
         .orderBy(asc(executionSteps.id))
+        .all(), // the sandbox inbox, always untrusted
+      messages: db
+        .select()
+        .from(inboxMessages)
+        .where(eq(inboxMessages.scenarioId, run.scenarioId))
+        .orderBy(asc(inboxMessages.receivedAt))
         .all(),
     };
   }
@@ -802,8 +814,9 @@ export function createEngine(deps: EngineDeps) {
           waitForApproval: step.tool === LARGE_PAYMENT_TOOL,
           holdTimeoutMs: deps.holdTimeoutMs,
           onHold(hold) {
-            if (current.status === 'AUTHORIZING')
-              current = moveStep(current, 'HELD', { source: 'armoriq' });
+            if (current.status === 'AUTHORIZING') {
+              current = moveStep(current, 'HELD', { source: 'armoriq', verdict: hold.verdict });
+            }
             if (hold.delegationId && current.delegationId !== hold.delegationId) {
               current = db
                 .update(executionSteps)
@@ -952,14 +965,14 @@ export function createEngine(deps: EngineDeps) {
       );
     const snapshot = db.select().from(snapshots).where(eq(snapshots.id, run.baseSnapshotId)).get();
     const state = snapshot?.state as TreasuryState;
-    return plan(run.id, { state }, 'agent', actor);
+    return plan(run.id, { state }, deps.plannerSource ?? 'agent', actor);
   }
 
   // asks the planner, checks what comes back, and stores it as proposals. never approves anything.
   async function plan(
     runId: number,
     request: PlannerRequest,
-    source: 'agent' | 'replan',
+    source: Branch['source'],
     actor: string,
     parent?: Branch,
     base?: typeof snapshots.$inferSelect,
@@ -1193,6 +1206,7 @@ export function createEngine(deps: EngineDeps) {
     audit,
     createRun,
     getRun,
+    listRuns,
     addBranches,
     proposeBranches,
     injectHostileMessage,

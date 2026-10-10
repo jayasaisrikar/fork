@@ -6,7 +6,8 @@ import { handleInbox } from './agents/inbox';
 import { createModels } from './agents/models';
 import { proposeBranches } from './agents/planner';
 import { createApp } from './app';
-import { createEngine } from './service';
+import { referenceBranches } from '@fork/domain-finance';
+import { createEngine, type PlannerRequest } from './service';
 
 const env = process.env;
 const capabilitySecret = env.MCP_CAPABILITY_SECRET;
@@ -32,6 +33,15 @@ const gatewayMissingReason = missing.length
   ? `ArmorIQ is not configured (${missing.join(', ')} missing). Nothing can be committed.`
   : undefined;
 
+// test and demo-rehearsal switch: the planner returns the three reference branches, and every
+// branch it makes is labeled 'fixture'. never set this for a real run.
+const fixturePlanner = env.FORK_FIXTURE_PLANNER === '1';
+const fixtureProposal = async (request: PlannerRequest) => ({
+  branches: referenceBranches(request.state)
+    .map(({ title, rationale, allocations }) => ({ title, rationale, allocations }))
+    .slice(0, request.replan ? 1 : 3),
+});
+
 // the planner and inbox agent need a model. without one the rest of FORK still works.
 const llmReady =
   env.LLM_BASE_URL && env.LLM_API_KEY && env.LLM_MODEL_PLANNER && env.LLM_MODEL_INBOX;
@@ -49,7 +59,12 @@ const engine = createEngine({
   gateway,
   gatewayMissingReason,
   capabilitySecret,
-  planner: models ? (request, check) => proposeBranches(models.planner, request, check) : undefined,
+  planner: fixturePlanner
+    ? fixtureProposal
+    : models
+      ? (request, check) => proposeBranches(models.planner, request, check)
+      : undefined,
+  plannerSource: fixturePlanner ? 'fixture' : 'agent',
   inbox: models ? (messages, actions) => handleInbox(models.inbox, messages, actions) : undefined,
   // how long a held payment waits for a human on the ArmorIQ platform
   holdTimeoutMs: Number(env.HOLD_TIMEOUT_MS ?? 180_000),

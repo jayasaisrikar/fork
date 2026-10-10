@@ -6,7 +6,7 @@ import {
   type MCPInvocationResult,
 } from '@armoriq/sdk';
 import { createArmorClient, type ArmorConfig } from './client';
-import { toVerdict, type Decision } from './verdict';
+import { toVerdict, type Decision, type Verdict } from './verdict';
 
 export interface PlanStep {
   action: string;
@@ -27,7 +27,8 @@ export interface DispatchOptions {
   // wait on the platform for a human instead of failing straight away
   waitForApproval?: boolean;
   holdTimeoutMs?: number;
-  onHold?: (hold: { delegationId?: string; reason: string }) => void;
+  // verdict is what toVerdict made of ArmorIQ's hold response
+  onHold?: (hold: { verdict: Verdict; delegationId?: string; reason: string }) => void;
 }
 
 export interface DispatchResult extends Decision {
@@ -71,7 +72,8 @@ export function createGateway(config: GatewayConfig): Gateway {
     invoke: (params: Record<string, unknown>) => Promise<MCPInvocationResult>,
   ) {
     const reason = hold.message || 'Held for approval';
-    options.onHold?.({ reason });
+    const { verdict } = toVerdict({ thrown: hold });
+    options.onHold?.({ verdict, reason });
     const context = hold.delegationContext ?? {};
     const request = await armor().createDelegationRequest({
       tool: step.action,
@@ -90,7 +92,7 @@ export function createGateway(config: GatewayConfig): Gateway {
       reason,
     });
     const delegationId = request.delegationId;
-    options.onHold?.({ delegationId, reason });
+    options.onHold?.({ verdict, delegationId, reason });
 
     const deadline = Date.now() + (options.holdTimeoutMs ?? 180_000);
     while (Date.now() < deadline) {
