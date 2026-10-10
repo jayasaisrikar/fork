@@ -1,0 +1,53 @@
+@import 'tailwindcss';
+
+/* Spec 7.2. Components use these tokens only; never a raw hex. */
+:root {
+  --bg: #f4f5f3;
+  --surface: #ffffff;
+  --raised: #eceeeb;
+  --line: #d8dcd8;
+  --text: #121614;
+  --muted: #58625d;
+  --accent: #0e6e64;
+  --allow: #167a47;
+  --hold: #9a6200;
+  --block: #b8301c;
+  --error: #5e4b8b;
+}
+
+[data-theme='dark'] {
+  --bg: #0b0e0d;
+  --surface: #121614;
+  --raised: #191e1c;
+  --line: #252c29;
+  --text: #e4eae7;
+  --muted: #8a9590;
+  --accent: #3bbfae;
+  --allow: #46c487;
+  --hold: #e3a93a;
+  --block: #ef6a55;
+  --error: #b39ddb;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-allow: var(--allow);
+  --color-hold: var(--hold);
+  --color-block: var(--block);
+  --color-error: var(--error);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+  --font-display: var(--font-archivo);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-plex-sans), sans-serif;
+}

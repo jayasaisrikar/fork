@@ -1,0 +1,54 @@
+# Starting point from the build spec (6.5). Adjusted after the Phase 1 spike; see docs/FINDINGS.md.
+apiVersion: armor.io/v1
+kind: Policy
+metadata:
+  name: fork-executor
+  targetType: agent
+  targetId: '<fork-executor agent id>' # HUMAN TASK: fill from platform
+spec:
+  priority: 100
+  status: active
+  defaultEnforcementAction: block
+  memberRules:
+    '*':
+      allowedTools:
+        - get_balance
+        - list_bills
+        - list_vendors
+        - list_receivables
+        - read_inbox
+        - simulate_branch
+        - mark_bill_paid
+        - pay_vendor
+        - get_payment
+        - inject_message
+      enforcementAction: allow_log
+      toolEnforcement:
+        update_vendor_bank_details: block
+        send_wire: block
+      amountThreshold:
+        maxPerTransaction: 25000
+        requireApprovalAbove: 15000
+        currency: USD
+      velocityLimit:
+        maxTransactionsPerHour: 30
+        maxCumulativePerDay: 60000
+        currency: USD
+      recipientValidation:
+        approvedVendors:
+          [
+            v_sertao,
+            v_harbor,
+            v_probat,
+            v_citypower,
+            v_tillpoint,
+            v_corrugate,
+            v_coastline,
+            v_fieldnote,
+            v_ridgeway,
+          ]
+        blockNewRecipients: true
+        blockPersonalAccounts: true
+      transactionTypeControl:
+        allowedTypes: [payment]
+        blockedTypes: [wire_transfer]

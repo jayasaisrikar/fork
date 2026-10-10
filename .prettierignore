@@ -1,0 +1,7 @@
+node_modules
+.next
+dist
+pnpm-lock.yaml
+docs/screenshots
+armoriq/plan-examples
+FORK_BUILD_SPEC.md
