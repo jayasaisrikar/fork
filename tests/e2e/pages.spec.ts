@@ -20,6 +20,8 @@ async function bothThemes(page: Page, name: string) {
   const width = page.viewportSize()!.width;
   await page.screenshot({ path: `${SHOTS}/${name}-light-${width}.png`, fullPage: true });
   await page.getByRole('button', { name: 'Toggle theme' }).click();
+  // let the color transitions finish before the picture
+  await page.waitForTimeout(350);
   await page.screenshot({ path: `${SHOTS}/${name}-dark-${width}.png`, fullPage: true });
   expect(await serious(page)).toEqual([]);
   await page.getByRole('button', { name: 'Toggle theme' }).click();
@@ -31,15 +33,14 @@ async function committedRun(page: Page) {
   await page.getByLabel('Email').fill('cfo@kettleandpine.test');
   await page.getByLabel('Password').fill('correct horse');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.getByRole('button', { name: 'Propose branches' }).first().click();
-  await page.getByRole('button', { name: 'Simulate branches' }).click();
+  await page.getByRole('button', { name: 'Explore options' }).click();
   await page.getByRole('button', { name: /Preserve runway/ }).click();
-  await page.getByRole('button', { name: 'Authorize branch B' }).first().click();
-  await page.getByRole('button', { name: 'Authorize 6 payments' }).click();
+  await page.getByRole('button', { name: 'Approve plan B' }).click();
+  await page.getByRole('button', { name: 'Approve 6 payments' }).click();
   await page.getByRole('button', { name: 'Run tamper test' }).click();
-  await expect(page.getByText('BLOCKED by ArmorIQ').first()).toBeVisible();
-  await page.getByRole('button', { name: 'Commit branch B' }).click();
-  await expect(page.getByRole('link', { name: 'View run record' })).toBeVisible({
+  await expect(page.getByText(/Blocked by ArmorIQ/).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Execute plan B' }).click();
+  await expect(page.getByRole('link', { name: 'View the receipt' })).toBeVisible({
     timeout: 20_000,
   });
 }
@@ -57,7 +58,7 @@ for (const width of [1440, 390]) {
 
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Commit only one.');
     await expect(page.getByText(/Recorded from a real run/)).toBeVisible();
-    await expect(page.getByText('BLOCKED by ArmorIQ').first()).toBeVisible();
+    await expect(page.getByText(/Blocked by ArmorIQ/).first()).toBeVisible();
     await expect(page.getByText('IntentMismatchException').first()).toBeVisible();
 
     const hrefs = await page
@@ -71,6 +72,11 @@ for (const width of [1440, 390]) {
       () => document.documentElement.scrollWidth - window.innerWidth,
     );
     expect(overflow).toBeLessThanOrEqual(0);
+    // nothing in the hero is cut off at the edge either
+    for (const part of [page.getByRole('heading', { level: 1 }), page.locator('dl[aria-live]')]) {
+      const box = (await part.boundingBox())!;
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+    }
     await bothThemes(page, 'landing');
     expect(errors).toEqual([]);
   });
@@ -82,14 +88,18 @@ test('landing: selecting a branch updates the numbers beside the graph', async (
   const before = await readout.innerText();
   await page.locator('.react-flow button[aria-pressed="false"]').first().click();
   await expect(readout).not.toHaveText(before);
-  await page.getByRole('link', { name: 'Open the workspace' }).first().click();
+  await page.getByRole('link', { name: 'Open the decision studio' }).first().click();
   await expect(page).toHaveURL(/\/app$/);
 });
 
 test('run record reconciles and replays without side effects', async ({ page }) => {
   await committedRun(page);
-  await page.getByRole('link', { name: 'View run record' }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('branch B: Preserve runway');
+  await page.getByRole('link', { name: 'View the receipt' }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('6 bills paid.');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText(
+    '2 unapproved attempts stopped.',
+  );
+  await expect(page.getByText('Plan B: Preserve runway')).toBeVisible();
 
   await expect(
     page.getByText('All three agree. Every approved payment was made, once.'),
@@ -98,7 +108,7 @@ test('run record reconciles and replays without side effects', async ({ page }) 
   await expect(totals).toContainText('$40,000.00');
   await expect(page.getByText('Not in the approved plan')).toBeVisible();
   await expect(page.getByText('Differs in recipientId')).toBeVisible();
-  await expect(page.getByText('Allowed by ArmorIQ, then refused by the MCP')).toBeVisible();
+  await expect(page.getByText('Allowed by ArmorIQ, then refused by the MCP').first()).toBeVisible();
   await expect(page.getByText('Approved, then paid')).toBeVisible();
 
   const download = page.waitForEvent('download');
@@ -111,16 +121,16 @@ test('run record reconciles and replays without side effects', async ({ page }) 
   expect(cash).toBe(1_000_000);
 
   await bothThemes(page, 'run-record');
-  await page.getByRole('link', { name: 'Runs', exact: true }).click();
+  await page.getByRole('link', { name: 'History', exact: true }).click();
   await expect(page.getByRole('link', { name: /Run #0001/ })).toBeVisible();
 });
 
 test('audit: filters, row inspector and exports all show the same evidence', async ({ page }) => {
   await committedRun(page);
-  await page.getByRole('link', { name: 'Audit', exact: true }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Evidence ledger');
+  await page.getByRole('link', { name: 'Activity', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Nothing happens quietly.');
 
-  await page.getByRole('button', { name: 'BLOCK', exact: true }).click();
+  await page.getByRole('button', { name: 'Blocked', exact: true }).click();
   const rows = page.locator('tbody tr');
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText('update_vendor_destination');
@@ -135,13 +145,22 @@ test('audit: filters, row inspector and exports all show the same evidence', asy
   const csv = await (await page.request.get(csvHref!)).text();
   expect(csv.trim().split('\n')).toHaveLength(2);
 
-  await page.getByRole('button', { name: 'REJECTED BY FORK' }).click();
+  await page.getByRole('button', { name: 'Rejected by FORK' }).click();
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText('branch.rejected_by_fork');
 
-  await page.getByRole('button', { name: 'All', exact: true }).click();
+  await page.getByRole('button', { name: 'All activity' }).click();
   await page.getByLabel('Search').fill('CAPABILITY_INVALID');
   await expect(rows).toHaveCount(1);
   await page.getByLabel('Search').fill('');
   await bothThemes(page, 'audit');
+});
+
+test('how it works explains the harness and links back to the studio', async ({ page }) => {
+  await page.goto('/how');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('not another chatbot');
+  await expect(page.getByText('interface ForkDomainAdapter')).toBeVisible();
+  await bothThemes(page, 'how');
+  await page.getByRole('link', { name: 'Open the decision studio' }).click();
+  await expect(page).toHaveURL(/\/app$/);
 });

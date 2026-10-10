@@ -1,7 +1,7 @@
 // a whole FORK for the browser tests: real engine, real MCP code, in-memory ledger, and a stand-in
 // for ArmorIQ that applies the same policy and approves holds. never used in production.
 import { serve } from '@hono/node-server';
-import { liquidityShortfall, referenceBranches } from '@fork/domain-finance';
+import { referenceBranches } from '@fork/domain-finance';
 import { world } from '../support/world';
 
 const port = Number(process.env.E2E_ENGINE_PORT ?? 8791);
@@ -14,7 +14,8 @@ function fresh(armoriq: boolean) {
     {
       plannerSource: 'fixture',
       planner: async (request) => ({
-        branches: referenceBranches(request.replan ? request.state : liquidityShortfall())
+        // like the real planner, it plans from the books as they are now
+        branches: referenceBranches(request.state)
           .map(({ title, rationale, allocations }) => ({ title, rationale, allocations }))
           .slice(request.replan ? 1 : 0, request.replan ? 2 : 3),
       }),
