@@ -3,8 +3,7 @@ name: fork-treasury
 version: v0.2.0
 scope:
   target_type: mcp
-  # id of fork-finance-mcp in the registry
-  target: 9f065919-b0f6-416a-a5d5-dab3d7442c32
+  target: 4599b2ea-0729-4f9b-ac22-d6742745a48e
   caller: all
 default_action: block
 priority: 50
