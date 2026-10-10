@@ -35,6 +35,8 @@ function StepIcon({ step, tone }: { step: Step; tone: StepTone }) {
   return step.tool.startsWith('execute_') ? <ArrowUpRight {...icon} /> : <Check {...icon} />;
 }
 
+const skipped = (step: Step) => step.status === 'NOT_EXECUTED' && !step.verdict;
+
 // who is behind the call: the approved plan, the inbox agent, or a deliberate security test
 const origin = (step: Step) => (step.origin === 'agent' ? 'agent' : step.origin);
 
@@ -55,7 +57,12 @@ export function ActivityFeed({
 }) {
   // an agent's attempt lands right after the step that triggered it
   const ordered = useMemo(
-    () => [...steps].sort((a, b) => a.at.localeCompare(b.at) || a.id - b.id),
+    () =>
+      [...steps].sort(
+        // steps the halt skipped were never attempted, so they read last
+        (a, b) =>
+          Number(skipped(a)) - Number(skipped(b)) || a.at.localeCompare(b.at) || a.id - b.id,
+      ),
     [steps],
   );
   if (!ordered.length) {

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { describeStep, isRefused, statusOf, type StepTone } from '@/lib/describe';
@@ -257,7 +258,9 @@ export function RunRecord({
       ? [
           {
             title: `${plural(skipped.length, 'approved payment')} not made`,
-            note: 'The plan stopped before reaching them.',
+            note: refused.length
+              ? 'FORK halts a plan the moment anything outside it is attempted. These bills stay unpaid until a person approves a new plan.'
+              : 'The plan was stopped before reaching them.',
             tone: 'gray' as StepTone,
           },
         ]
@@ -337,6 +340,18 @@ export function RunRecord({
             <Field name="Refused attempts that were paid">None</Field>
             <Field name="Authority to change the plan">CFO only</Field>
           </dl>
+          {skipped.length ? (
+            <div className="mt-3">
+              <Insight tone="gold">
+                <b>{plural(skipped.length, 'approved payment')} still unpaid.</b> A halted plan is
+                never resumed on its own.{' '}
+                <Link href="/app" className="text-accent font-bold underline underline-offset-2">
+                  Replan from the studio
+                </Link>{' '}
+                to pay them under a new approval.
+              </Insight>
+            </div>
+          ) : null}
           <div className="mt-3">
             <Insight tone="good">
               Money leaves the ledger only on a receipt. The reconciliation below compares the

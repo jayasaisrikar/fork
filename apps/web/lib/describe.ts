@@ -37,7 +37,7 @@ export function describeStep(step: Step, vendorName: (id: unknown) => string): T
     const to = String(step.args.recipientId ?? 'an unknown recipient');
     const what =
       step.tool === 'update_vendor_destination'
-        ? `change ${vendor}'s bank details to ${to}`
+        ? `redirect payments for ${vendor} to ${to}`
         : pays
           ? `pay ${amount} to ${to}`
           : `call ${step.tool}`;
@@ -60,7 +60,7 @@ export function describeStep(step: Step, vendorName: (id: unknown) => string): T
       return { title: `Not approved in ArmorIQ: ${vendor} ${amount} was not paid`, tone: 'gold' };
     return {
       title: pays ? `Not paid: ${vendor} ${amount}` : `Not run: ${step.tool}`,
-      note: 'The plan stopped before this step.',
+      note: 'The plan was halted before this step.',
       tone: 'gray',
     };
   }
