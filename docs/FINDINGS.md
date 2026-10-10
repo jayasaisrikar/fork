@@ -50,7 +50,39 @@ block" has to come from a block the proxy sees. Options, best first:
 
 ## Part B: live spike results
 
-Not run yet. Waiting on the Phase 0 HUMAN TASK.
+Run on 2026-10-10 against production ArmorIQ (`proxy.armoriq.ai`), MCP reached through a Cloudflare
+quick tunnel. **No agent was registered and no policy was active** for these runs: the client ran
+as `agent=__sdk_multiuser__` and the proxy reported `matched_policies: []`.
 
-| ID  | Test | Expected | Actual | Raw output (trimmed) | Conclusion |
-| --- | ---- | -------- | ------ | -------------------- | ---------- |
+| ID  | Test                                                     | Expected                  | Actual                                                                                                                                                 | Conclusion                                                                           |
+| --- | -------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| S0  | Construct the client                                     | OK                        | Constructed                                                                                                                                            | PASS                                                                                 |
+| S1  | Plan `[get_treasury_balance]`; invoke                    | Success                   | First runs: HTTP 400 `Parse error: Invalid JSON-RPC message` (see B2). After the fix: `status: success`, `verified: true`, and the MCP logged the call | PASS. Platform trace not checked yet                                                 |
+| S2  | Invoke `list_invoices`, not in plan                      | `IntentMismatchException` | `IntentMismatchException: Action 'list_invoices' not found in the original plan`                                                                       | PASS. Raised locally by the SDK, nothing reached the MCP (A8)                        |
+| S3  | Plan pays `rcp-harbor` $100; invoke with `rcp-northline` | Record                    | Call resolved. The MCP received and "executed" the payment to `rcp-northline`                                                                          | **Params are not bound.** With no policy, an altered recipient goes straight through |
+| S4  | $12,000 payment, wait for approval                       | Hold                      | Not run, needs policy and a human                                                                                                                      | Open                                                                                 |
+| S5  | `update_vendor_destination` in plan                      | `PolicyBlockedException`  | Not run, needs policy                                                                                                                                  | Open                                                                                 |
+| S6  | 60 s token, wait 70 s                                    | `TokenExpiredException`   | `TokenExpiredException: Intent token expired 13.2s ago`                                                                                                | PASS. Raised locally (A9)                                                            |
+| S7  | Payment to an unregistered recipient                     | Policy block              | Not run, needs policy                                                                                                                                  | Open                                                                                 |
+| S8  | Bad API key                                              | An error, never a result  | HTTP 401 at token mint, surfaced as `InvalidTokenException: Token issuance failed: Invalid or expired API key`                                         | PASS. No token, so nothing can be invoked                                            |
+
+### What the live runs showed
+
+- **B1. A registered agent is not required.** Token minting and invoke both work with only the API
+  key. The platform's Add AI agent form currently fails with "url must be a URL address" on every
+  method we tried, so this matters. What a policy can target without an agent is still open.
+- **B2. The proxy adds `_iam_context` to the JSON-RPC body.** It sends `initialize`, then
+  `tools/call` with an extra top-level `_iam_context` (`allowed_tools`, `user_id`, `email`, `domain`,
+  `matched_policies`). The MCP SDK's transport rejects unknown top-level fields, so the MCP now
+  strips everything except the JSON-RPC fields before handing the message over.
+- **B3. MCP auth works as planned (U4).** The proxy forwards the SDK's `mcpCredentials` as an
+  `x-fork-mcp-key` header. The registry's own discovery scan uses `X-API-Key` instead.
+- **B4. Plan hash equals Merkle root for a one-step plan,** and the hash does not change with the
+  plan's `goal`: S1 and S2 had different goals and the same hash. The hash covers the steps.
+- **B5. Result shape (U6):** `{ mcp, action, result: { content: [...] }, status, executionTime,
+verified, metadata: { hasToolError } }`. No trace ID. The token carries `tokenId` and `planId`,
+  which are the only references we can store.
+- **B6. S3 settles U2.** FORK must never claim parameter binding. Altered arguments are stopped by
+  the MCP's single-use capability and args hash, and by recipient policy if S7 shows it works.
+- **B7. A bad key fails at mint with `InvalidTokenException`.** That is a setup failure, not a
+  step verdict: commit must refuse to start, and it must not be shown as an ArmorIQ block.

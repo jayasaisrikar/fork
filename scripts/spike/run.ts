@@ -18,13 +18,28 @@ function env(name: string): string {
 const userEmail = env('CFO_EMAIL');
 
 function makeClient(apiKey = env('ARMORIQ_API_KEY')) {
-  return createArmorClient({
+  const client = createArmorClient({
     apiKey,
     agentId: process.env.ARMORIQ_AGENT_ID || undefined,
     userId: process.env.ARMORIQ_USER_ID || undefined,
     mcpName: FINANCE_MCP,
     mcpKey: env('FORK_MCP_KEY'),
   });
+  // the SDK flattens error bodies to "[object Object]", so print them here
+  client
+    ._sessionInternals()
+    .httpClient.interceptors.response.use(
+      (response: { status: number; data: unknown; config: { url?: string } }) => {
+        if (response.status >= 400) {
+          console.log(
+            `HTTP ${response.status} ${response.config.url}:`,
+            JSON.stringify(response.data),
+          );
+        }
+        return response;
+      },
+    );
+  return client;
 }
 
 type Params = Record<string, unknown>;
