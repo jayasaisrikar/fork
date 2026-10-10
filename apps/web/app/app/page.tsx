@@ -1,51 +1,60 @@
 'use client';
 
-import { Tabs, Tooltip } from 'radix-ui';
-import { List, Network, X } from 'lucide-react';
+import { LayoutGrid, Network, X } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Books } from '@/components/books';
-import { BranchCanvas, BranchList } from '@/components/branch-canvas';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { BillsTable, SituationBar } from '@/components/books';
+import { BranchCanvas } from '@/components/branch-canvas';
+import { PlanCard } from '@/components/branch-card';
 import {
   CommandPalette,
+  Shell,
   SignIn,
-  Stepper,
-  TopBar,
+  StepBar,
   VerdictIsland,
   type PaletteAction,
   type Stage,
 } from '@/components/chrome';
 import { Compare } from '@/components/compare';
-import { AuthorizeDialog, Inspector, payments } from '@/components/inspector';
-import { Button, Hint, Panel } from '@/components/primitives';
-import { ExecutionRail } from '@/components/rail';
+import { AuthorizeDialog, DecisionPanel, payments } from '@/components/inspector';
+import { Button, buttonClass, Card, Insight } from '@/components/primitives';
+import { ActivityFeed, Safeguards } from '@/components/rail';
+import { DONE } from '@/lib/describe';
+import { usdShort } from '@/lib/format';
 import type { Branch, RunView } from '@/lib/types';
 import { useWorkspace, type Workspace } from '@/lib/use-workspace';
 
-const DONE = ['COMMITTED', 'PARTIALLY_COMMITTED', 'BLOCKED', 'CANCELLED'];
+const STOPPED: Branch['status'][] = ['BLOCKED', 'PARTIALLY_COMMITTED', 'CANCELLED', 'STALE'];
 
 function stageOf(view: RunView | null): Stage {
   const branches = view?.branches ?? [];
-  if (!branches.length) return 'Fork';
-  if (branches.some((branch) => branch.status === 'PROPOSED')) return 'Simulate';
+  if (!branches.length || branches.some((branch) => branch.status === 'PROPOSED')) return 'Explore';
   if (branches.some((branch) => branch.status === 'APPROVED' || branch.status === 'COMMITTING'))
     return 'Execute';
   const finished = branches.some((branch) => DONE.includes(branch.status));
   const openReplan = branches.some((branch) => branch.parentId && branch.status === 'SIMULATED');
-  return finished && !openReplan ? 'Review' : 'Authorize';
+  return finished && !openReplan ? 'Review' : 'Approve';
 }
 
 function defaultBranch(view: RunView | null): string | null {
   const branches = view?.branches ?? [];
+  const feasible = branches.filter((branch) => branch.status === 'SIMULATED');
   const pick =
     branches.find((branch) => branch.status === 'COMMITTING' || branch.status === 'APPROVED') ??
     branches.find(
       (branch) => branch.parentId && ['PROPOSED', 'SIMULATED'].includes(branch.status),
     ) ??
     branches.find((branch) => DONE.includes(branch.status)) ??
-    branches.find((branch) => branch.status === 'SIMULATED') ??
+    bestOf(feasible) ??
     branches[0];
   return pick?.id ?? null;
+}
+
+// the feasible plan that leaves the most cash. a fact about the numbers, not a recommendation.
+function bestOf(branches: Branch[]): Branch | undefined {
+  return branches
+    .filter((branch) => branch.projection && branch.feasibility?.ok !== false)
+    .sort((a, b) => b.projection!.cashAfterCents - a.projection!.cashAfterCents)[0];
 }
 
 function useMedia(query: string) {
@@ -60,99 +69,175 @@ function useMedia(query: string) {
   return matches;
 }
 
-// one main button, and it always says what it will do. when it can't act, it says why.
-function PrimaryAction({
-  ws,
-  stage,
-  branch,
-}: {
-  ws: Workspace;
-  stage: Stage;
-  branch: Branch | null;
-}) {
+// what the page says at the top. it changes with the step, so it always answers "what now?"
+function headline(view: RunView | null, stage: Stage, short: boolean): [string, string] {
+  const branches = view?.branches ?? [];
+  if (!branches.length) {
+    return [
+      short ? "You can't pay everything this week." : "This week's bills need a plan.",
+      'Let the agent draft a few ways to handle it. FORK runs the numbers on a copy of the books, and nothing is paid until you approve one plan.',
+    ];
+  }
+  const active =
+    branches.find((branch) => ['APPROVED', 'COMMITTING'].includes(branch.status)) ??
+    branches.find((branch) => DONE.includes(branch.status));
+  if (stage === 'Explore')
+    return [
+      'A new plan needs its numbers run.',
+      'A proposal is only an idea. Run the numbers to see what it would do, then decide whether to approve it.',
+    ];
+  if (stage === 'Approve') {
+    const count = branches.filter((branch) => !branch.parentId).length;
+    return [
+      `${count} ways forward. Pick one.`,
+      'Compare what each plan pays, defers and costs. Approve the one you want. The agent cannot change it afterwards.',
+    ];
+  }
+  if (stage === 'Execute') {
+    return active?.status === 'COMMITTING'
+      ? [
+          `Executing plan ${active.label}.`,
+          'Each approved payment is checked by ArmorIQ, then paid. Every call shows up in the activity below as it happens.',
+        ]
+      : [
+          `Plan ${active?.label} is approved. Nothing has moved yet.`,
+          'Execute it to send each payment through ArmorIQ. This is also the moment to test the safeguards.',
+        ];
+  }
+  const ending =
+    active?.status === 'COMMITTED'
+      ? 'is done.'
+      : active?.status === 'CANCELLED'
+        ? 'was cancelled.'
+        : 'was stopped early.';
+  return [
+    `Plan ${active?.label} ${ending}`,
+    'The receipt shows what was paid, what was stopped, and the proof behind both.',
+  ];
+}
+
+// one main button, and it always says what it will do. the hint says what happens after.
+function nextStep(
+  ws: Workspace,
+  stage: Stage,
+  branch: Branch | null,
+): { action: ReactNode; hint: string } {
   const busy = Boolean(ws.busy);
+  const view = ws.view;
   const health = ws.health;
-  if (stage === 'Fork') {
-    return (
-      <Button variant="primary" disabled={busy} onClick={() => ws.propose()}>
-        {busy ? ws.busy : 'Propose branches'}
-      </Button>
-    );
+
+  if (stage === 'Explore') {
+    const fresh = !view?.branches.length;
+    return {
+      action: (
+        <Button
+          variant="primary"
+          className="w-full"
+          disabled={busy}
+          onClick={() => (fresh ? ws.explore() : ws.simulateAll())}
+        >
+          {busy ? `${ws.busy}…` : fresh ? 'Explore options' : 'Run the numbers'}
+        </Button>
+      ),
+      hint: fresh
+        ? 'Drafting plans moves no money. A real model writes them, so it can take a few minutes.'
+        : 'A new proposal is not an approval. Running the numbers changes nothing in the books.',
+    };
   }
-  if (stage === 'Simulate') {
-    return (
-      <Button variant="primary" disabled={busy} onClick={() => ws.simulateAll()}>
-        {busy ? ws.busy : 'Simulate branches'}
-      </Button>
-    );
-  }
-  if (stage === 'Authorize') {
-    if (branch?.status === 'SIMULATED' && ws.scenario && ws.view) {
-      return (
-        <AuthorizeDialog
-          compact
-          branch={branch}
-          items={payments(branch, ws.scenario, ws.view)}
-          busy={busy}
-          onConfirm={() => ws.authorize(branch.id)}
-        />
-      );
+
+  if (stage === 'Approve') {
+    if (branch?.status === 'SIMULATED' && ws.scenario && view) {
+      return {
+        action: (
+          <AuthorizeDialog
+            branch={branch}
+            items={payments(branch, ws.scenario, view)}
+            busy={busy}
+            onConfirm={() => ws.authorize(branch.id)}
+          />
+        ),
+        hint: 'You stay in control. Approving freezes these exact payments. It does not send them.',
+      };
     }
     const reason =
       branch?.status === 'INFEASIBLE'
-        ? `Branch ${branch.label} was rejected by FORK. Pick a branch that keeps the reserve.`
-        : 'Select a simulated branch first.';
-    return (
-      <Button variant="primary" disabled reason={reason}>
-        Authorize a branch
-      </Button>
-    );
+        ? `Plan ${branch.label} was rejected by FORK. Pick a plan that keeps the reserve.`
+        : 'Select a plan that can still be approved.';
+    return {
+      action: (
+        <Button variant="primary" className="w-full" disabled reason={reason}>
+          {branch ? `Can't approve plan ${branch.label}` : 'Select a plan'}
+        </Button>
+      ),
+      hint: reason,
+    };
   }
+
   if (stage === 'Execute') {
-    const active = ws.view?.branches.find(
-      (item) => item.status === 'APPROVED' || item.status === 'COMMITTING',
-    );
+    const active = view?.branches.find((item) => ['APPROVED', 'COMMITTING'].includes(item.status));
     if (active?.status === 'COMMITTING') {
-      return (
-        <div className="flex gap-2">
-          <Button onClick={() => ws.cancel(active.id)} disabled={busy}>
-            Stop after this step
-          </Button>
-          <Button
-            variant="primary"
-            disabled
-            reason="The runner is working through the approved steps."
-          >
-            Committing branch {active.label}
-          </Button>
-        </div>
-      );
+      return {
+        action: (
+          <div className="flex flex-col gap-2">
+            <Button variant="primary" className="w-full" disabled>
+              Executing plan {active.label}…
+            </Button>
+            <Button className="w-full" onClick={() => ws.cancel(active.id)} disabled={busy}>
+              Stop after this step
+            </Button>
+          </div>
+        ),
+        hint: 'The runner is working through the approved steps, one call at a time.',
+      };
     }
     const ready = health?.armoriqConfigured && health.armoriqReachable && health.mcpReachable;
     const reason = !health?.armoriqConfigured
       ? (health?.reason ?? 'ArmorIQ is not configured. Nothing can be committed.')
       : !health.armoriqReachable
-        ? "ArmorIQ didn't respond. Nothing was paid. Commit is paused."
-        : 'The payment server is not reachable. Commit is paused.';
-    return (
-      <Button
-        variant="primary"
-        disabled={busy || !ready || !active}
-        reason={!ready ? reason : undefined}
-        onClick={() => active && ws.commit(active.id)}
-      >
-        {busy ? ws.busy : `Commit branch ${active?.label ?? ''}`}
-      </Button>
-    );
+        ? "ArmorIQ didn't respond. Nothing was paid. Execution is paused."
+        : 'The payment server is not reachable. Execution is paused.';
+    return {
+      action: (
+        <Button
+          variant="primary"
+          className="w-full"
+          disabled={busy || !ready || !active}
+          reason={!ready ? reason : undefined}
+          onClick={() => active && ws.commit(active.id)}
+        >
+          {busy ? `${ws.busy}…` : `Execute plan ${active?.label ?? ''}`}
+        </Button>
+      ),
+      hint: ready
+        ? 'Each payment is sent through ArmorIQ to the sandbox payment server. Anything outside the approved plan is refused.'
+        : reason,
+    };
   }
-  return (
-    <Link
-      href={`/app/runs/${ws.view?.run.id ?? ''}`}
-      className="bg-accent text-bg border-accent inline-flex h-8 items-center rounded-[4px] border px-3 text-[13px] font-medium hover:opacity-90"
-    >
-      View run record
-    </Link>
-  );
+
+  const stopped = branch && STOPPED.includes(branch.status);
+  return {
+    action: (
+      <div className="flex flex-col gap-2">
+        <Link
+          href={`/app/runs/${view?.run.id ?? ''}`}
+          className={`${buttonClass('primary')} w-full`}
+        >
+          View the receipt
+        </Link>
+        {stopped ? (
+          <Button className="w-full" disabled={busy} onClick={() => ws.replan(branch.id)}>
+            Replan from here
+          </Button>
+        ) : null}
+        <Button variant="quiet" className="w-full" disabled={busy} onClick={() => ws.explore()}>
+          Start a new decision
+        </Button>
+      </div>
+    ),
+    hint: stopped
+      ? 'Replanning asks the agent for a new plan from where this one stopped. It needs a new approval.'
+      : 'This decision is closed. Its record cannot be edited.',
+  };
 }
 
 function Notice({ ws }: { ws: Workspace }) {
@@ -160,40 +245,27 @@ function Notice({ ws }: { ws: Workspace }) {
   return (
     <div
       role="alert"
-      className="border-line bg-raised flex items-start justify-between gap-3 rounded-[6px] border px-3 py-2 text-[13px]"
+      className="border-block text-text flex items-start justify-between gap-3 rounded-[10px] border bg-[color-mix(in_srgb,var(--block)_9%,var(--surface))] px-4 py-3 text-[13px]"
     >
       <span>{ws.notice.text}</span>
       <button
         type="button"
         onClick={ws.dismiss}
         aria-label="Dismiss"
-        className="hover:bg-surface rounded-[4px] p-0.5"
+        className="hover:bg-raised rounded-[6px] p-0.5"
       >
-        <X size={14} strokeWidth={1.5} />
+        <X size={15} strokeWidth={1.75} />
       </button>
     </div>
   );
 }
 
-export default function WorkspacePage() {
+export default function StudioPage() {
   const ws = useWorkspace();
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [palette, setPalette] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
-  const [listView, setListView] = useState(false);
-  const wide = useMedia('(min-width: 1280px)');
-  const phone = !useMedia('(min-width: 768px)');
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem('fork-app-theme');
-    if (saved === 'light' || saved === 'dark') setTheme(saved);
-  }, []);
-  const toggleTheme = () =>
-    setTheme((current) => {
-      const next = current === 'dark' ? 'light' : 'dark';
-      window.localStorage.setItem('fork-app-theme', next);
-      return next;
-    });
+  const [mapView, setMapView] = useState(false);
+  const phone = !useMedia('(min-width: 1024px)');
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -207,7 +279,6 @@ export default function WorkspacePage() {
   }, []);
 
   const view = ws.view;
-  const crumb = view ? `Run #${String(view.run.id).padStart(4, '0')}` : 'No run';
   const stage = stageOf(view);
   const selectedId = view?.branches.some((branch) => branch.id === picked)
     ? picked
@@ -217,19 +288,60 @@ export default function WorkspacePage() {
   const steps = useMemo(() => view?.steps ?? [], [view]);
   const branches = useMemo(() => view?.branches ?? [], [view]);
 
+  if (ws.email === undefined) {
+    return (
+      <Shell active="Studio">
+        <p className="text-muted p-8 text-[13px]">Loading the studio…</p>
+      </Shell>
+    );
+  }
+
+  if (ws.email === null || !ws.scenario) {
+    return (
+      <Shell active="Studio" health={ws.health}>
+        <main className="mx-auto flex w-full max-w-[1240px] flex-1 flex-col items-start gap-4 px-4 py-12 lg:px-8">
+          <Notice ws={ws} />
+          {ws.email === null ? <SignIn ws={ws} /> : null}
+        </main>
+      </Shell>
+    );
+  }
+
+  const live = ws.scenario;
+  const base = view?.snapshot.state ?? live;
+  const due = base.invoices.reduce((sum, item) => sum + item.amountCents - item.paidCents, 0);
+  const [title, lead] = headline(view, stage, due > base.cashCents);
+  const { action, hint } = nextStep(ws, stage, selected);
+  const empty = branches.length === 0;
+  const best =
+    stage === 'Approve' ? bestOf(branches.filter((b) => b.status === 'SIMULATED')) : null;
+  const simulated = branches.some((branch) => branch.projection);
+  const vendorName = (id: unknown) =>
+    base.vendors.find((item) => item.id === id)?.name ?? String(id ?? '');
+  const infeasible = branches.filter((branch) => branch.status === 'INFEASIBLE').length;
+
+  const panel = (
+    <DecisionPanel
+      branch={selected}
+      scenario={base}
+      view={view}
+      action={empty || phone ? null : action}
+      hint={hint}
+    />
+  );
+
   const actions: PaletteAction[] = [
     {
       name: 'Inject hostile message (security test)',
       run: view ? () => void ws.inject() : undefined,
-      reason: view ? undefined : 'Start a run first',
+      reason: view ? undefined : 'Explore options first',
     },
     {
       name: 'Run tamper test (security test)',
       run: selected?.approvedPlanHash ? () => void ws.tamper(selected.id) : undefined,
-      reason: selected?.approvedPlanHash ? undefined : 'Authorize a branch first',
+      reason: selected?.approvedPlanHash ? undefined : 'Approve a plan first',
     },
-    { name: 'Start a new run', run: () => void ws.propose() },
-    { name: theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme', run: toggleTheme },
+    { name: 'Start a new decision', run: () => void ws.explore() },
     {
       name: 'Open the ArmorIQ console',
       run: () => window.open('https://platform.armoriq.ai', '_blank', 'noreferrer'),
@@ -237,169 +349,191 @@ export default function WorkspacePage() {
     { name: 'Reset the demo', reason: 'Run pnpm reset in the terminal, then restart the engine' },
   ];
 
-  const shell = 'flex min-h-dvh flex-col bg-bg text-text font-sans text-[14px]';
-
-  if (ws.email === undefined) {
-    return (
-      <div data-theme={theme} className={shell}>
-        <p className="text-muted p-6 text-[13px]">Loading the workspace…</p>
-      </div>
-    );
-  }
-
-  if (ws.email === null) {
-    return (
-      <div data-theme={theme} className={shell}>
-        <Tooltip.Provider>
-          <TopBar
-            active="Workspace"
-            crumb={crumb}
-            health={ws.health}
-            theme={theme}
-            onTheme={toggleTheme}
-            onPalette={() => setPalette(true)}
-          />
-          <main className="flex flex-1 flex-col items-start gap-3 p-6">
-            <Notice ws={ws} />
-            <SignIn ws={ws} />
-          </main>
-        </Tooltip.Provider>
-      </div>
-    );
-  }
-
-  const canvasProps = {
-    branches,
-    steps,
-    cashCents: view?.snapshot.state.cashCents ?? ws.scenario?.cashCents ?? 0,
-    selectedId,
-    onSelect: select,
-  };
-  const showList = phone || listView;
-
-  const canvas = (
-    <Panel
-      title="Branch canvas"
-      className={wide ? 'h-[420px] shrink-0' : phone ? '' : 'h-[460px]'}
-      action={
-        phone ? null : (
-          <Hint text={listView ? 'Show the graph' : 'Show branches as a list'}>
-            <button
-              type="button"
-              aria-pressed={listView}
-              aria-label="List view"
-              onClick={() => setListView(!listView)}
-              className="hover:bg-raised flex h-6 items-center gap-1.5 rounded-[4px] px-1.5 text-[12px]"
-            >
-              {listView ? (
-                <Network size={13} strokeWidth={1.5} />
-              ) : (
-                <List size={13} strokeWidth={1.5} />
-              )}
-              {listView ? 'Graph' : 'List view'}
-            </button>
-          </Hint>
-        )
-      }
-    >
-      {branches.length === 0 ? (
-        <div className="flex h-full flex-col items-start justify-center gap-3 p-6">
-          <p className="max-w-[46ch] text-[14px]">
-            No branches yet. The planner proposes up to three ways to handle this week&apos;s
-            invoices. Nothing is paid until you authorize one.
-          </p>
-          <Button variant="primary" disabled={Boolean(ws.busy)} onClick={() => ws.propose()}>
-            {ws.busy ?? 'Propose branches'}
-          </Button>
-        </div>
-      ) : showList ? (
-        <BranchList {...canvasProps} />
-      ) : (
-        <BranchCanvas {...canvasProps} />
-      )}
-    </Panel>
-  );
-
-  const books = ws.scenario ? <Books scenario={ws.scenario} view={view} /> : null;
-  const inspector = ws.scenario ? (
-    <Inspector branch={selected} scenario={ws.scenario} view={view} ws={ws} />
-  ) : null;
-  const compare = ws.scenario ? (
-    <Compare branches={branches} scenario={ws.scenario} selectedId={selectedId} onSelect={select} />
-  ) : null;
-  const rail = <ExecutionRail steps={steps} events={ws.events} branch={selected} ws={ws} />;
-  const tab =
-    'text-muted data-[state=active]:text-text data-[state=active]:border-accent -mb-px h-9 border-b-2 border-transparent px-3 text-[13px] font-medium';
-
   return (
-    <div data-theme={theme} className={shell}>
-      <Tooltip.Provider>
-        <VerdictIsland events={ws.events} />
-        <TopBar
-          active="Workspace"
-          crumb={crumb}
-          health={ws.health}
-          theme={theme}
-          onTheme={toggleTheme}
-          onPalette={() => setPalette(true)}
-        />
+    <Shell active="Studio" health={ws.health}>
+      <VerdictIsland events={ws.events} />
+      <main
+        className={`mx-auto w-full max-w-[1240px] flex-1 px-4 pt-9 lg:px-8 ${phone && !empty ? 'pb-28' : 'pb-20'}`}
+      >
+        <div className="eyebrow">
+          Kettle &amp; Pine / Weekly treasury
+          {view ? ` / Run #${String(view.run.id).padStart(4, '0')}` : ''}
+        </div>
+        <h1 className="mt-2.5 max-w-[22ch] text-[32px] leading-[1.08] font-extrabold sm:text-[40px]">
+          {title}
+        </h1>
+        <p className="text-muted mt-3 max-w-[64ch] text-[14px] leading-relaxed">{lead}</p>
 
-        <div className="border-line flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-2">
-          <Stepper stage={stage} />
-          {phone ? null : <PrimaryAction ws={ws} stage={stage} branch={selected} />}
+        <div className="mt-6">
+          <StepBar stage={stage} />
         </div>
 
-        <main className={`flex min-h-0 flex-1 flex-col gap-3 p-3 ${phone ? 'pb-20' : ''}`}>
+        <div className="mt-5 flex flex-col gap-4">
+          <SituationBar base={base} live={live} />
           <Notice ws={ws} />
-          {wide ? (
-            <>
-              <div className="grid h-[660px] shrink-0 grid-cols-[288px_minmax(0,1fr)_360px] gap-3">
-                <Panel title="Books & inputs">{books}</Panel>
-                <div className="flex min-h-0 flex-col gap-3">
-                  {canvas}
-                  <div className="flex min-h-0 flex-1 flex-col">{compare}</div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1.75fr)_minmax(300px,0.85fr)]">
+          <div className="flex min-w-0 flex-col gap-4">
+            <Card
+              title={empty ? 'No plans yet' : 'Choose how to handle it'}
+              hint={
+                empty
+                  ? 'The agent proposes up to three ways to handle these invoices.'
+                  : `Every plan starts from the same ${usdShort(base.cashCents)}.`
+              }
+              action={
+                empty || phone ? null : (
+                  <div
+                    className="border-line bg-bg flex rounded-[8px] border p-0.5"
+                    role="group"
+                    aria-label="View"
+                  >
+                    {(
+                      [
+                        [false, 'Cards', LayoutGrid],
+                        [true, 'Branch map', Network],
+                      ] as const
+                    ).map(([value, name, Icon]) => (
+                      <button
+                        key={name}
+                        type="button"
+                        aria-pressed={mapView === value}
+                        onClick={() => setMapView(value)}
+                        className={`flex h-7 items-center gap-1.5 rounded-[6px] px-2.5 text-[12px] font-bold ${mapView === value ? 'bg-surface text-text shadow-sm' : 'text-muted hover:text-text'}`}
+                      >
+                        <Icon size={13} strokeWidth={2} aria-hidden />
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                )
+              }
+            >
+              {empty ? (
+                ws.busy ? (
+                  <div role="status">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      {['A', 'B', 'C'].map((letter) => (
+                        <div
+                          key={letter}
+                          className="border-line bg-bg shimmer h-[150px] rounded-[12px] border border-dashed p-4"
+                        >
+                          <span className="border-line text-muted flex h-7 w-7 items-center justify-center rounded-[6px] border text-[13px] font-extrabold">
+                            {letter}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-[13px] font-bold">{ws.busy}…</p>
+                    <p className="text-muted text-[12px]">
+                      A real model drafts these, so this can take a few minutes. No money moves.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="border-line bg-bg flex flex-col items-start gap-4 rounded-[12px] border border-dashed p-6">
+                    <p className="max-w-[52ch] text-[14px] leading-relaxed">
+                      Each plan is tried against a frozen copy of the books, so you can compare
+                      outcomes side by side before a single payment is made.
+                    </p>
+                    <div className="w-full sm:w-auto sm:min-w-[220px]">{action}</div>
+                  </div>
+                )
+              ) : mapView && !phone ? (
+                <div className="border-line bg-bg h-[460px] overflow-hidden rounded-[12px] border">
+                  <BranchCanvas
+                    branches={branches}
+                    steps={steps}
+                    cashCents={base.cashCents}
+                    selectedId={selectedId}
+                    onSelect={select}
+                  />
                 </div>
-                <Panel title="Inspector">{inspector}</Panel>
-              </div>
-              {rail}
-            </>
-          ) : (
-            <>
-              {canvas}
-              {compare}
-              <Tabs.Root
-                defaultValue="inspector"
-                className="border-line bg-surface rounded-[6px] border"
+              ) : (
+                <ol
+                  aria-label="Plans"
+                  className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+                >
+                  {branches.map((branch) => (
+                    <li key={branch.id}>
+                      <PlanCard
+                        branch={branch}
+                        selected={branch.id === selectedId}
+                        best={branch.id === best?.id}
+                        onSelect={() => select(branch.id)}
+                      />
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {simulated ? (
+                <div className="mt-4">
+                  <Insight tone="good">
+                    <b>These numbers are calculated by FORK, not guessed by the agent.</b>{' '}
+                    Simulating a plan never touches the ledger.
+                    {infeasible
+                      ? ` ${infeasible} plan${infeasible === 1 ? ' was' : 's were'} rejected because the money isn't there.`
+                      : ''}
+                  </Insight>
+                </div>
+              ) : null}
+            </Card>
+
+            {/* on a phone the selected plan sits right under the cards */}
+            {phone ? panel : null}
+
+            {simulated ? (
+              <Compare
+                branches={branches}
+                scenario={base}
+                selectedId={selectedId}
+                onSelect={select}
+              />
+            ) : null}
+
+            <Card
+              flush
+              title="Which bills get paid?"
+              hint={
+                selected?.projection
+                  ? `What plan ${selected.label} does with each invoice.`
+                  : 'The invoices due this week.'
+              }
+            >
+              <BillsTable base={base} live={live} branch={selected} view={view} />
+            </Card>
+
+            {view ? (
+              <Card
+                flush
+                title="What actually happened"
+                hint="Every tool call, in order: what it meant, who made it, and what ArmorIQ answered."
               >
-                <Tabs.List className="border-line flex border-b px-1" aria-label="Details">
-                  <Tabs.Trigger value="books" className={tab}>
-                    Books
-                  </Tabs.Trigger>
-                  <Tabs.Trigger value="inspector" className={tab}>
-                    Inspector
-                  </Tabs.Trigger>
-                  <Tabs.Trigger value="execution" className={tab}>
-                    Execution
-                  </Tabs.Trigger>
-                </Tabs.List>
-                <Tabs.Content value="books">{books}</Tabs.Content>
-                <Tabs.Content value="inspector">{inspector}</Tabs.Content>
-                <Tabs.Content value="execution" className="p-2">
-                  {rail}
-                </Tabs.Content>
-              </Tabs.Root>
-            </>
-          )}
-        </main>
+                <ActivityFeed steps={steps} events={ws.events} vendorName={vendorName} />
+              </Card>
+            ) : null}
 
-        {phone ? (
-          <div className="border-line bg-surface fixed inset-x-0 bottom-0 z-30 flex justify-end border-t p-3">
-            <PrimaryAction ws={ws} stage={stage} branch={selected} />
+            {view ? (
+              <Card
+                title="Test the safeguards"
+                hint="Try to push an approved plan off course. Both tests go through the real ArmorIQ path."
+              >
+                <Safeguards ws={ws} branch={selected} messages={view.messages} />
+              </Card>
+            ) : null}
           </div>
-        ) : null}
 
-        <CommandPalette open={palette} onOpenChange={setPalette} actions={actions} />
-      </Tooltip.Provider>
-    </div>
+          {phone ? null : panel}
+        </div>
+      </main>
+
+      {phone && !empty ? (
+        <div className="border-line bg-surface fixed inset-x-0 bottom-0 z-30 border-t p-3">
+          {action}
+        </div>
+      ) : null}
+
+      <CommandPalette open={palette} onOpenChange={setPalette} actions={actions} />
+    </Shell>
   );
 }

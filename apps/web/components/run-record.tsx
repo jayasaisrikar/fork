@@ -2,13 +2,22 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
-import { clock, usd } from '@/lib/format';
+import { describeStep, isRefused, statusOf, type StepTone } from '@/lib/describe';
+import { clock, usd, usdShort } from '@/lib/format';
 import type { AuditEvent, Branch, PlannedAction, Projection, RunView, Step } from '@/lib/types';
-import { statusText } from './branch-card';
-import { Button, Chip, HashChip, Money, SourcePill, VerdictPill } from './primitives';
+import {
+  Button,
+  Field,
+  HashChip,
+  Insight,
+  Money,
+  SourcePill,
+  Tag,
+  VerdictPill,
+} from './primitives';
 
-const th = 'label px-3 py-2 text-left font-normal';
-const td = 'px-3 py-2 align-top';
+const th = 'label px-3 py-2.5 text-left';
+const td = 'px-3 py-2.5 align-top';
 const DIFF_FIELDS = ['vendorId', 'recipientId', 'amountCents'] as const;
 
 function Section({
@@ -21,11 +30,48 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="border-line border-t py-6">
-      <h2 className="text-[16px] font-semibold">{title}</h2>
-      {note ? <p className="text-muted mt-1 max-w-[70ch] text-[13px]">{note}</p> : null}
-      <div className="mt-3">{children}</div>
+    <section className="card mt-4 p-5">
+      <h2 className="text-[18px] leading-tight font-extrabold">{title}</h2>
+      {note ? <p className="text-muted mt-1 max-w-[76ch] text-[13px]">{note}</p> : null}
+      <div className="mt-4">{children}</div>
     </section>
+  );
+}
+
+const DOT: Record<StepTone, string> = {
+  good: 'bg-allow',
+  bad: 'bg-block',
+  gold: 'bg-hold',
+  purple: 'bg-fork-reject',
+  gray: 'bg-muted',
+};
+
+interface Moment {
+  title: string;
+  note?: string;
+  tone: StepTone;
+}
+
+// the run as a short story. each line is backed by a row in the evidence below.
+function Timeline({ moments }: { moments: Moment[] }) {
+  return (
+    <ol>
+      {moments.map((moment, i) => (
+        <li key={i} className="relative grid grid-cols-[18px_1fr] gap-3 pb-5 last:pb-0">
+          {i < moments.length - 1 ? (
+            <span className="bg-line absolute top-4 bottom-0 left-[8px] w-px" aria-hidden />
+          ) : null}
+          <span
+            className={`ring-surface relative mt-1 h-[17px] w-[17px] rounded-full ring-4 ${DOT[moment.tone]}`}
+            aria-hidden
+          />
+          <div>
+            <h3 className="text-[14px] font-bold tracking-normal">{moment.title}</h3>
+            {moment.note ? <p className="text-muted mt-0.5 text-[13px]">{moment.note}</p> : null}
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -39,7 +85,7 @@ function Table({
   min?: number;
 }) {
   return (
-    <div className="border-line overflow-x-auto rounded-[6px] border">
+    <div className="border-line overflow-x-auto rounded-[10px] border">
       <table className="bg-surface w-full border-collapse text-[13px]" style={{ minWidth: min }}>
         <thead>
           <tr className="border-line border-b">
@@ -141,7 +187,7 @@ export function RunRecord({
     ) ??
     view.branches.find((item) => item.approvedPlanHash) ??
     view.branches[0];
-  if (!branch) return <p className="text-muted text-[14px]">This run has no branches yet.</p>;
+  if (!branch) return <p className="text-muted text-[14px]">This run has no plans yet.</p>;
 
   const state = view.snapshot.state;
   const vendor = (id: unknown) =>
@@ -154,9 +200,7 @@ export function RunRecord({
   const steps = view.steps
     .filter((step) => step.branchId === branch.id)
     .sort((a, b) => a.at.localeCompare(b.at) || a.id - b.id);
-  const refused = steps.filter(
-    (step) => step.verdict && step.status === 'NOT_EXECUTED' && step.verdict !== 'hold',
-  );
+  const refused = steps.filter(isRefused);
   const held = steps.filter((step) => step.delegationId);
   const receipts = view.receipts.filter((receipt) =>
     steps.some((step) => step.receiptId === receipt.id),
@@ -174,40 +218,138 @@ export function RunRecord({
     URL.revokeObjectURL(link.href);
   }
 
+  const paidCents = receipts.reduce((sum, receipt) => sum + receipt.amountCents, 0);
+  const cashLeft = state.cashCents - (totals?.ledgerCents ?? paidCents);
+  const writes = actions.filter((action) => action.kind === 'write');
+  const skipped = steps.filter(
+    (step) => step.origin === 'runner' && step.kind === 'write' && !step.verdict,
+  );
+  const status = statusOf(branch.status);
+  const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
+  const headline = [
+    receipts.length
+      ? `${plural(receipts.length, 'bill')} paid.`
+      : approval
+        ? 'Nothing was paid.'
+        : 'No plan was approved.',
+    refused.length ? `${plural(refused.length, 'unapproved attempt')} stopped.` : '',
+  ].join(' ');
+
+  const moments: Moment[] = [
+    {
+      title: `${plural(view.branches.filter((item) => !item.parentId).length, 'plan')} explored`,
+      note: `Each was simulated against the same starting balance of ${usdShort(state.cashCents)}.`,
+      tone: 'gray',
+    },
+    ...(approval
+      ? [
+          {
+            title: `${approval.actor} approved plan ${branch.label}`,
+            note: `${plural(writes.length, 'payment')} were frozen into the approved plan.`,
+            tone: 'good' as StepTone,
+          },
+        ]
+      : []),
+    ...steps
+      .filter((step) => step.kind === 'write' && (step.verdict || step.status !== 'NOT_EXECUTED'))
+      .map((step) => describeStep(step, vendor)),
+    ...(skipped.length
+      ? [
+          {
+            title: `${plural(skipped.length, 'approved payment')} not made`,
+            note: 'The plan stopped before reaching them.',
+            tone: 'gray' as StepTone,
+          },
+        ]
+      : []),
+    ...(totals
+      ? [
+          {
+            title: 'The outcome was reconciled',
+            note: 'Receipts were checked against the approved plan and the ledger.',
+            tone: 'good' as StepTone,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <article>
-      <header className="pb-6">
-        <p className="label">Run record</p>
-        <h1 className="mt-1 text-[28px] leading-tight font-semibold">
-          Run <span className="font-mono">#{String(view.run.id).padStart(4, '0')}</span>, branch{' '}
-          {branch.label}: {branch.title}
+      <header className="bg-mint rounded-[16px] border border-[color-mix(in_srgb,var(--accent)_22%,var(--mint))] p-6 lg:p-8">
+        <Tag tone="good">Decision receipt</Tag>
+        <h1 className="mt-4 max-w-[20ch] text-[34px] leading-[1.08] font-extrabold sm:text-[42px]">
+          {headline}
         </h1>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Chip tone="text">{statusText(branch.status)}</Chip>
+        <p className="mt-3 flex flex-wrap items-center gap-2 text-[14px]">
+          <span>
+            Run <span className="font-mono">#{String(view.run.id).padStart(4, '0')}</span> · Plan{' '}
+            {branch.label}: {branch.title}
+          </span>
+          <Tag tone={status.tone}>{status.text}</Tag>
           <SourcePill source={branch.source} />
-        </div>
-        <dl className="mt-4 grid max-w-[720px] grid-cols-[160px_1fr] gap-y-1 text-[13px]">
-          <dt className="text-muted">Started</dt>
-          <dd className="font-mono">{view.run.createdAt.replace('T', ' ').slice(0, 19)} UTC</dd>
-          <dt className="text-muted">Approver</dt>
-          <dd>{approval?.actor ?? 'Not authorized'}</dd>
-          <dt className="text-muted">Authorized at</dt>
-          <dd className="font-mono">
-            {approval ? `${approval.at.replace('T', ' ').slice(0, 19)} UTC` : '—'}
-          </dd>
-          <dt className="text-muted">Approved plan</dt>
-          <dd>
-            {branch.approvedPlanHash ? (
-              <HashChip value={branch.approvedPlanHash} label="approved plan hash" />
-            ) : (
-              '—'
-            )}
-          </dd>
+        </p>
+        <dl className="mt-6 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+          {(
+            [
+              ['Paid as approved', usdShort(paidCents), ''],
+              ['Cash remaining', usdShort(cashLeft), ''],
+              [
+                'Unapproved attempts',
+                `${refused.length} stopped`,
+                refused.length ? 'text-block' : '',
+              ],
+            ] as const
+          ).map(([name, value, tone]) => (
+            <div key={name} className="bg-surface rounded-[10px] p-4">
+              <dt className="label">{name}</dt>
+              <dd className={`figure mt-1 text-[26px] ${tone}`}>{value}</dd>
+            </div>
+          ))}
         </dl>
       </header>
 
+      <div className="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+        <section className="card p-5">
+          <h2 className="mb-4 text-[18px] leading-tight font-extrabold">What happened</h2>
+          <Timeline moments={moments} />
+        </section>
+        <section className="card p-5">
+          <h2 className="text-[18px] leading-tight font-extrabold">What stayed protected</h2>
+          <dl className="mt-2">
+            <Field name="Approved plan">
+              {branch.approvedPlanHash ? (
+                <HashChip value={branch.approvedPlanHash} label="approved plan hash" />
+              ) : (
+                '—'
+              )}
+            </Field>
+            <Field name="Approver">{approval?.actor ?? 'Not approved'}</Field>
+            <Field name="Approved at">
+              <span className="font-mono text-[12px]">
+                {approval ? `${approval.at.replace('T', ' ').slice(0, 19)} UTC` : '—'}
+              </span>
+            </Field>
+            <Field name="Started">
+              <span className="font-mono text-[12px]">
+                {view.run.createdAt.replace('T', ' ').slice(0, 19)} UTC
+              </span>
+            </Field>
+            <Field name="Refused attempts that were paid">None</Field>
+            <Field name="Authority to change the plan">CFO only</Field>
+          </dl>
+          <div className="mt-3">
+            <Insight tone="good">
+              Money leaves the ledger only on a receipt. The reconciliation below compares the
+              receipts with the approved plan and the ledger.
+            </Insight>
+          </div>
+        </section>
+      </div>
+
+      <h2 className="eyebrow mt-10">The evidence</h2>
+
       <Section
-        title="Authorization"
+        title="What was approved"
         note="The steps exactly as the CFO signed them. FORK hashes them; ArmorIQ signs the same steps as an intent plan when the commit starts."
       >
         {execution ? (
@@ -254,7 +396,7 @@ export function RunRecord({
       </Section>
 
       <Section
-        title="Execution"
+        title="What was attempted"
         note="Each call that was attempted, next to what was approved. A field that differs from the approved step is marked."
       >
         {steps.length ? (
@@ -339,7 +481,7 @@ export function RunRecord({
         {refused.length ? (
           <ul className="space-y-3">
             {refused.map((step) => (
-              <li key={step.id} className="border-line bg-surface rounded-[6px] border p-3">
+              <li key={step.id} className="border-line bg-bg rounded-[10px] border p-3.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-[13px]">{step.tool}</span>
                   <VerdictPill verdict={step.verdict} />
@@ -425,7 +567,7 @@ export function RunRecord({
           title="Reconciliation"
           note="Three totals from three places. Executed and ledger must always agree. Authorized is higher when the branch stopped short."
         >
-          <dl className="border-line bg-surface grid max-w-[520px] grid-cols-[1fr_auto] gap-y-2 rounded-[6px] border p-3 text-[14px]">
+          <dl className="border-line bg-bg grid max-w-[520px] grid-cols-[1fr_auto] gap-y-2 rounded-[10px] border p-4 text-[14px]">
             <dt>Authorized by the CFO</dt>
             <dd className="money">{usd(totals.authorizedCents)}</dd>
             <dt>Executed, by receipts</dt>
@@ -452,7 +594,7 @@ export function RunRecord({
       ) : null}
 
       <Section title="Chronology" note="The append-only event log for this run, oldest first.">
-        <ol className="border-line bg-surface divide-line divide-y rounded-[6px] border text-[13px]">
+        <ol className="border-line divide-line divide-y rounded-[10px] border text-[13px]">
           {events.map((event) => (
             <li key={event.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5">
               <span className="text-muted font-mono text-[12px]">{clock(event.at)}</span>

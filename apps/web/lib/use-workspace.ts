@@ -21,6 +21,9 @@ export function useWorkspace() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [live, setLive] = useState(false);
   const runId = view?.run.id;
+  // the run on screen. an action can open a new run halfway through, so this is read when the
+  // action ends, not when it started.
+  const shown = useRef<number | undefined>(undefined);
 
   const refresh = useCallback(async (id?: number) => {
     const [scenarioResponse, healthResponse] = await Promise.all([
@@ -34,6 +37,7 @@ export function useWorkspace() {
       const { runs } = await api<{ runs: { id: number }[] }>('GET', '/api/runs');
       target = runs[0]?.id;
     }
+    shown.current = target;
     setView(target === undefined ? null : await api<RunView>('GET', `/api/runs/${target}`));
   }, []);
 
@@ -80,19 +84,27 @@ export function useWorkspace() {
       setNotice(null);
       try {
         await work();
-        await refresh(runId);
+        await refresh(shown.current);
         return true;
       } catch (error) {
         const text =
           error instanceof ApiFailure || error instanceof Error ? error.message : String(error);
-        setNotice({ kind: 'error', text });
-        await refresh(runId).catch(() => undefined);
+        // the agent's proposal didn't survive FORK's checks. say so, and say what to do.
+        const rejected = error instanceof ApiFailure && error.code === 'INVALID_PROPOSAL';
+        const reasons = rejected && Array.isArray(error.details) ? error.details.join(' ') : '';
+        setNotice({
+          kind: 'error',
+          text: rejected
+            ? `The agent proposed a plan FORK could not accept: ${text}. ${reasons} Nothing was changed. Explore options again for a fresh proposal.`
+            : text,
+        });
+        await refresh(shown.current).catch(() => undefined);
         return false;
       } finally {
         setBusy(null);
       }
     },
-    [refresh, runId],
+    [refresh],
   );
 
   const signIn = (password: string, as: string) =>
@@ -105,8 +117,9 @@ export function useWorkspace() {
       setEmail(session.email);
     });
 
-  const propose = () =>
-    act('Proposing branches', async () => {
+  // proposes plans and runs the numbers on each, so the first thing on screen is a comparison
+  const explore = () =>
+    act('Drafting plans', async () => {
       let id = view && view.branches.length === 0 ? view.run.id : undefined;
       if (id === undefined) {
         id = (await api<RunView>('POST', '/api/runs')).run.id;
@@ -114,10 +127,15 @@ export function useWorkspace() {
       }
       await api('POST', `/api/runs/${id}/propose`);
       await refresh(id);
+      setBusy('Running the numbers');
+      const { branches } = await api<RunView>('GET', `/api/runs/${id}`);
+      for (const branch of branches) {
+        if (branch.status === 'PROPOSED') await api('POST', `/api/branches/${branch.id}/simulate`);
+      }
     });
 
   const simulateAll = () =>
-    act('Simulating', async () => {
+    act('Running the numbers', async () => {
       for (const branch of view?.branches ?? []) {
         if (branch.status === 'PROPOSED') await api('POST', `/api/branches/${branch.id}/simulate`);
       }
@@ -136,10 +154,10 @@ export function useWorkspace() {
     live,
     dismiss: () => setNotice(null),
     signIn,
-    propose,
+    explore,
     simulateAll,
-    authorize: (branchId: string) => post('Authorizing', `/api/branches/${branchId}/authorize`),
-    commit: (branchId: string) => post('Starting commit', `/api/branches/${branchId}/commit`),
+    authorize: (branchId: string) => post('Approving', `/api/branches/${branchId}/authorize`),
+    commit: (branchId: string) => post('Starting', `/api/branches/${branchId}/commit`),
     cancel: (branchId: string) => post('Cancelling', `/api/branches/${branchId}/cancel`),
     tamper: (branchId: string) =>
       post('Running tamper test', `/api/branches/${branchId}/tamper-test`),

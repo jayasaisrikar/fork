@@ -1,5 +1,7 @@
 'use client';
 
+import { ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
 import { RunRecord } from '@/components/run-record';
@@ -31,7 +33,13 @@ function Record({ id }: { id: string }) {
 export default function RunRecordPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   return (
-    <AppShell active="Runs" crumb={`Run #${id.padStart(4, '0')}`}>
+    <AppShell active="History">
+      <Link
+        href="/app/runs"
+        className="text-accent mb-5 inline-flex items-center gap-1.5 text-[13px] font-bold"
+      >
+        <ArrowLeft size={15} strokeWidth={2} aria-hidden /> All decisions
+      </Link>
       <Record id={id} />
     </AppShell>
   );

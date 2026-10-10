@@ -1,30 +1,19 @@
 'use client';
 
-import { Tooltip } from 'radix-ui';
 import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, setCsrf } from '@/lib/api';
 import type { Health } from '@/lib/types';
-import { TopBar } from './chrome';
+import { Shell, type Section } from './chrome';
+import { buttonClass } from './primitives';
 
-// the frame around the read-only pages. they are light-first because they get read and shared.
-export function AppShell({
-  active,
-  crumb,
-  children,
-}: {
-  active: 'Runs' | 'Audit';
-  crumb?: string;
-  children: ReactNode;
-}) {
-  const [theme, setTheme] = useState<'dark' | 'light'>('light');
+// the frame around the signed-in, read-only pages
+export function AppShell({ active, children }: { active: Section; children: ReactNode }) {
   const [health, setHealth] = useState<Health | null>(null);
   const [email, setEmail] = useState<string | null | undefined>(undefined);
   const [problem, setProblem] = useState<string | null>(null);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem('fork-record-theme');
-    if (saved === 'light' || saved === 'dark') setTheme(saved);
     (async () => {
       try {
         const me = await api<{ email: string | null; csrfToken?: string }>('GET', '/api/auth/me');
@@ -38,44 +27,28 @@ export function AppShell({
     })();
   }, []);
 
-  const toggle = () =>
-    setTheme((current) => {
-      const next = current === 'dark' ? 'light' : 'dark';
-      window.localStorage.setItem('fork-record-theme', next);
-      return next;
-    });
-
   return (
-    <div
-      data-theme={theme}
-      className="bg-bg text-text flex min-h-dvh flex-col font-sans text-[14px]"
-    >
-      <Tooltip.Provider>
-        <TopBar active={active} crumb={crumb} health={health} theme={theme} onTheme={toggle} />
-        <main className="mx-auto w-full max-w-[1120px] flex-1 px-4 py-6">
-          {problem ? (
-            <p
-              role="alert"
-              className="border-line bg-raised rounded-[6px] border px-3 py-2 text-[13px]"
-            >
-              {problem}
+    <Shell active={active} health={health}>
+      <main className="mx-auto w-full max-w-[1240px] flex-1 px-4 py-10 lg:px-8">
+        {problem ? (
+          <p role="alert" className="card px-4 py-3 text-[13px]">
+            {problem}
+          </p>
+        ) : null}
+        {email === null && !problem ? (
+          <div className="card max-w-[480px] p-6">
+            <h1 className="text-[22px] font-extrabold">Sign in to read the records</h1>
+            <p className="text-muted mt-2 text-[13px]">
+              Decisions and activity belong to the CFO&apos;s account.
             </p>
-          ) : null}
-          {email === null && !problem ? (
-            <p className="text-[14px]">
-              Sign in as the CFO to read the records.{' '}
-              <Link href="/app" className="text-accent underline underline-offset-2">
-                Go to sign in
-              </Link>
-            </p>
-          ) : null}
-          {email ? children : null}
-        </main>
-        <footer className="border-line text-muted border-t px-4 py-3 text-[12px]">
-          Verdicts are recorded from ArmorIQ responses. Fictional company. Sandbox ledger. No real
-          payments.
-        </footer>
-      </Tooltip.Provider>
-    </div>
+            <Link href="/app" className={`${buttonClass('primary')} mt-4`}>
+              Go to sign in
+            </Link>
+          </div>
+        ) : null}
+        {email === undefined ? <p className="text-muted text-[13px]">Loading…</p> : null}
+        {email ? children : null}
+      </main>
+    </Shell>
   );
 }

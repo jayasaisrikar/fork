@@ -2,37 +2,40 @@
 
 import { Command } from 'cmdk';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Dialog, Popover } from 'radix-ui';
-import { Moon, Sun } from 'lucide-react';
+import { Dialog, Popover, Tooltip } from 'radix-ui';
+import { Check, Menu, Moon, Sun } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { clock } from '@/lib/format';
 import type { AuditEvent, Health } from '@/lib/types';
+import { useTheme } from '@/lib/use-theme';
 import type { Workspace } from '@/lib/use-workspace';
-import { Button, Chip, Field, Hint, VerdictPill } from './primitives';
+import { Button, buttonClass, Field, Hint, VerdictPill } from './primitives';
 
 export function Wordmark() {
   return (
-    <Link href="/" className="flex items-center gap-2" aria-label="FORK home">
-      {/* three paths merging into one */}
-      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden>
-        <path
-          d="M2 3 H7 Q10 3 10 6 V10 M2 10 H10 M2 17 H7 Q10 17 10 14 V10"
-          fill="none"
-          stroke="var(--muted)"
-          strokeWidth="1.25"
-        />
-        <path d="M10 10 H18" stroke="var(--accent)" strokeWidth="3" />
-      </svg>
-      <span className="font-display text-[16px] font-extrabold tracking-wide [font-stretch:120%]">
-        FORK
+    <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="FORK home">
+      <span className="bg-panel flex h-[30px] w-[30px] items-center justify-center rounded-[8px]">
+        {/* three paths, one carried through */}
+        <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden>
+          <path
+            d="M2 4 H6 Q10 4 10 7 V10 M2 16 H6 Q10 16 10 13 V10"
+            fill="none"
+            stroke="var(--panel-muted)"
+            strokeWidth="1.5"
+          />
+          <path d="M2 10 H18" stroke="var(--bright)" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+      </span>
+      <span className="text-[21px] leading-none font-extrabold tracking-[-0.06em]">
+        fork<span className="text-accent">.</span>
       </span>
     </Link>
   );
 }
 
-function HealthRow({ name, ok, detail }: { name: string; ok: boolean; detail?: string }) {
-  return <Field name={name}>{detail ?? (ok ? 'Yes' : 'No')}</Field>;
+function HealthRow({ name, ok }: { name: string; ok: boolean }) {
+  return <Field name={name}>{ok ? 'Yes' : 'No'}</Field>;
 }
 
 export function HealthPopover({ health }: { health: Health | null }) {
@@ -44,12 +47,9 @@ export function HealthPopover({ health }: { health: Health | null }) {
       <Popover.Trigger asChild>
         <button
           type="button"
-          className="border-line hover:bg-raised flex h-7 items-center gap-2 rounded-[4px] border px-2 text-[12px]"
+          className="border-line hover:bg-raised flex h-8 items-center gap-2 rounded-[7px] border px-2.5 text-[12px] font-bold whitespace-nowrap"
         >
-          <span
-            className={`h-2 w-2 rounded-full ${ready ? 'bg-accent' : 'bg-muted'}`}
-            aria-hidden
-          />
+          <span className={`h-2 w-2 rounded-full ${ready ? 'bg-allow' : 'bg-muted'}`} aria-hidden />
           {health ? (ready ? 'Enforcement ready' : 'Enforcement not ready') : 'Checking…'}
         </button>
       </Popover.Trigger>
@@ -57,11 +57,14 @@ export function HealthPopover({ health }: { health: Health | null }) {
         <Popover.Content
           sideOffset={6}
           align="end"
-          className="border-line bg-surface text-text z-50 w-[320px] rounded-[6px] border p-3 shadow-lg"
+          className="border-line bg-surface text-text z-50 w-[320px] rounded-[12px] border p-4 shadow-lg"
         >
           <div className="label">System health</div>
+          <p className="text-muted mt-1 text-[12px]">
+            Money can only move when ArmorIQ and the payment server are both reachable.
+          </p>
           {health ? (
-            <dl className="mt-1">
+            <dl className="mt-2">
               <HealthRow name="ArmorIQ configured" ok={health.armoriqConfigured} />
               <HealthRow name="ArmorIQ reachable" ok={health.armoriqReachable} />
               <HealthRow name="MCP reachable" ok={health.mcpReachable} />
@@ -84,11 +87,11 @@ export function HealthPopover({ health }: { health: Health | null }) {
           {health?.registeredTools.length ? (
             <>
               <div className="label mt-3">Tools registered on ArmorIQ</div>
-              <ul className="mt-1 flex flex-wrap gap-1">
+              <ul className="mt-1.5 flex flex-wrap gap-1">
                 {health.registeredTools.map((tool) => (
                   <li
                     key={tool}
-                    className="border-line rounded-[4px] border px-1.5 font-mono text-[11px]"
+                    className="border-line rounded-[5px] border px-1.5 font-mono text-[11px]"
                   >
                     {tool}
                   </li>
@@ -102,116 +105,176 @@ export function HealthPopover({ health }: { health: Health | null }) {
   );
 }
 
-const TABS: { name: string; href?: string; reason?: string }[] = [
-  { name: 'Workspace', href: '/app' },
-  { name: 'Runs', href: '/app/runs' },
-  { name: 'Audit', href: '/app/audit' },
-  { name: 'Lab', reason: 'The harness lab is optional and not built.' },
-];
+// two kinds of page, two short menus. the product pages don't carry the brochure links and the
+// brochure doesn't carry the product's.
+const APP = [
+  { name: 'Studio', href: '/app' },
+  { name: 'History', href: '/app/runs' },
+  { name: 'Activity', href: '/app/audit' },
+] as const;
+const SITE = [
+  { name: 'Overview', href: '/' },
+  { name: 'How it works', href: '/how' },
+] as const;
 
-interface TopBarProps {
-  active: 'Workspace' | 'Runs' | 'Audit';
-  crumb?: string;
-  health: Health | null;
-  theme: 'dark' | 'light';
-  onTheme: () => void;
-  onPalette?: () => void;
+export type Section = (typeof APP)[number]['name'] | (typeof SITE)[number]['name'];
+
+interface ShellProps {
+  active: Section;
+  // only the signed-in pages know the engine's health
+  health?: Health | null;
+  children: ReactNode;
 }
 
-export function TopBar({ active, crumb, health, theme, onTheme, onPalette }: TopBarProps) {
+const iconButton =
+  'border-line hover:bg-raised flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border';
+
+// the frame every page shares: header, theme, footer
+export function Shell({ active, health, children }: ShellProps) {
+  const { theme, toggle } = useTheme();
+  const inApp = APP.some((item) => item.name === active);
+  const tabs = inApp ? APP : SITE;
+  const others = inApp ? SITE : APP;
+
   return (
-    <header className="border-line bg-surface flex h-14 shrink-0 items-center gap-3 border-b px-3 sm:gap-4 sm:px-4">
-      <Wordmark />
-      <div className="text-muted hidden items-center gap-1.5 text-[13px] md:flex">
-        <span>Kettle &amp; Pine</span>
-        {crumb ? (
-          <>
-            <span aria-hidden>/</span>
-            <span className="text-text font-mono">{crumb}</span>
-          </>
-        ) : null}
-      </div>
-      <nav className="flex min-w-0 items-center gap-1" aria-label="Sections">
-        {TABS.map((tab) =>
-          tab.href ? (
-            <Link
-              key={tab.name}
-              href={tab.href}
-              aria-current={tab.name === active ? 'page' : undefined}
-              className={`rounded-[4px] px-2 py-1 text-[13px] ${tab.name === active ? 'bg-raised font-medium' : 'text-muted hover:text-text'}`}
-            >
-              {tab.name}
-            </Link>
-          ) : (
-            <Hint key={tab.name} text={tab.reason ?? ''}>
-              <span
-                tabIndex={0}
-                aria-disabled
-                className="text-muted hidden cursor-not-allowed rounded-[4px] px-2 py-1 text-[13px] opacity-60 lg:inline"
-              >
-                {tab.name}
+    <div
+      data-theme={theme}
+      className="bg-bg text-text flex min-h-dvh flex-col font-sans text-[14px]"
+    >
+      <Tooltip.Provider>
+        <header className="border-line bg-surface sticky top-0 z-30 border-b">
+          <div className="mx-auto flex h-14 w-full max-w-[1240px] items-center gap-3 px-4 lg:px-8">
+            <Wordmark />
+            {inApp ? (
+              <span className="border-line text-muted hidden border-l pl-3 text-[13px] lg:block">
+                Kettle &amp; Pine <span aria-hidden>·</span> sandbox
               </span>
-            </Hint>
-          ),
-        )}
-      </nav>
-      <div className="ml-auto flex items-center gap-2">
-        <span className="hidden sm:inline-flex">
-          <Chip>SANDBOX</Chip>
-        </span>
-        <div className="hidden sm:block">
-          <HealthPopover health={health} />
-        </div>
-        {onPalette ? (
-          <Hint text="Command palette">
-            <button
-              type="button"
-              onClick={onPalette}
-              className="border-line text-muted hover:bg-raised hidden h-7 rounded-[4px] border px-2 font-mono text-[12px] sm:block"
-            >
-              ⌘K
-            </button>
-          </Hint>
-        ) : null}
-        <Hint text={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}>
-          <button
-            type="button"
-            onClick={onTheme}
-            aria-label="Toggle theme"
-            className="border-line hover:bg-raised flex h-7 w-7 items-center justify-center rounded-[4px] border"
-          >
-            {theme === 'dark' ? (
-              <Sun size={14} strokeWidth={1.5} />
-            ) : (
-              <Moon size={14} strokeWidth={1.5} />
-            )}
-          </button>
-        </Hint>
-      </div>
-    </header>
+            ) : null}
+
+            <nav className="ml-3 hidden h-full items-stretch gap-1 md:flex" aria-label="Main">
+              {tabs.map((item) => (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  aria-current={item.name === active ? 'page' : undefined}
+                  className={`-mb-px flex items-center border-b-2 px-3 text-[14px] font-bold ${
+                    item.name === active
+                      ? 'border-ink text-text'
+                      : 'text-muted hover:text-text border-transparent'
+                  }`}
+                >
+                  {item.name}
+                </Link>
+              ))}
+            </nav>
+
+            <div className="ml-auto flex items-center gap-2">
+              {inApp ? (
+                <Link
+                  href="/how"
+                  className="text-muted hover:text-text hidden px-2 text-[13px] font-bold md:block"
+                >
+                  How it works
+                </Link>
+              ) : null}
+              {health !== undefined ? (
+                <div className="hidden md:block">
+                  <HealthPopover health={health} />
+                </div>
+              ) : null}
+              <Hint text={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}>
+                <button
+                  type="button"
+                  onClick={toggle}
+                  aria-label="Toggle theme"
+                  className={iconButton}
+                >
+                  {theme === 'dark' ? (
+                    <Sun size={16} strokeWidth={1.75} />
+                  ) : (
+                    <Moon size={16} strokeWidth={1.75} />
+                  )}
+                </button>
+              </Hint>
+              {inApp ? null : (
+                <Link href="/app" className={`${buttonClass('primary', 'sm')} h-9`}>
+                  Open studio
+                </Link>
+              )}
+
+              {/* on a phone every link lives in one menu, so the header stays a single row */}
+              <Popover.Root>
+                <Popover.Trigger asChild>
+                  <button type="button" aria-label="Menu" className={`${iconButton} md:hidden`}>
+                    <Menu size={17} strokeWidth={1.75} />
+                  </button>
+                </Popover.Trigger>
+                <Popover.Portal>
+                  <Popover.Content
+                    align="end"
+                    sideOffset={8}
+                    className="border-line bg-surface text-text z-50 w-[240px] rounded-[12px] border p-2 shadow-lg"
+                  >
+                    <nav aria-label="Menu" className="flex flex-col">
+                      {[...tabs, ...others].map((item, i) => (
+                        <Link
+                          key={item.name}
+                          href={item.href}
+                          aria-current={item.name === active ? 'page' : undefined}
+                          className={`rounded-[8px] px-3 py-2.5 text-[14px] font-bold ${
+                            item.name === active ? 'bg-raised' : 'hover:bg-raised'
+                          } ${i === tabs.length ? 'border-line mt-2 rounded-t-none border-t pt-3.5' : ''}`}
+                        >
+                          {item.name}
+                        </Link>
+                      ))}
+                    </nav>
+                  </Popover.Content>
+                </Popover.Portal>
+              </Popover.Root>
+            </div>
+          </div>
+        </header>
+        {children}
+        <footer className="border-line text-muted mt-auto border-t">
+          <div className="mx-auto flex w-full max-w-[1240px] flex-wrap justify-between gap-x-6 gap-y-1 px-4 py-5 text-[12px] lg:px-8">
+            <span>fork. A branch-and-commit harness for autonomous agents.</span>
+            <span>
+              Verdicts are recorded from ArmorIQ responses. Fictional company. Sandbox ledger. No
+              real payments.
+            </span>
+          </div>
+        </footer>
+      </Tooltip.Provider>
+    </div>
   );
 }
 
-export const STAGES = ['Fork', 'Simulate', 'Authorize', 'Execute', 'Review'] as const;
+export const STAGES = ['Explore', 'Approve', 'Execute', 'Review'] as const;
 export type Stage = (typeof STAGES)[number];
 
-export function Stepper({ stage }: { stage: Stage }) {
+export function StepBar({ stage }: { stage: Stage }) {
   const at = STAGES.indexOf(stage);
   return (
-    <ol className="flex items-center gap-1 overflow-x-auto" aria-label="Run stages">
+    <ol className="flex items-center gap-2 overflow-x-auto" aria-label="Steps">
       {STAGES.map((name, i) => (
         <li
           key={name}
           aria-current={i === at ? 'step' : undefined}
-          className="flex items-center gap-1"
+          className={`flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[12px] font-bold whitespace-nowrap ${
+            i === at
+              ? 'bg-ink text-on-ink border-ink'
+              : i < at
+                ? 'bg-mint text-accent border-transparent'
+                : 'bg-surface text-muted border-line'
+          }`}
         >
-          <span
-            className={`flex h-7 items-center gap-2 rounded-[4px] px-2 text-[12px] whitespace-nowrap ${i === at ? 'bg-raised text-text font-semibold' : i < at ? 'text-text' : 'text-muted'}`}
-          >
-            <span className={`font-mono text-[11px] ${i <= at ? 'text-accent' : ''}`}>{i + 1}</span>
-            {name}
-          </span>
-          {i < STAGES.length - 1 ? <span className="bg-line h-px w-4" aria-hidden /> : null}
+          {i < at ? (
+            <Check size={13} strokeWidth={2.5} aria-hidden />
+          ) : (
+            <span className="font-mono">{i + 1}</span>
+          )}
+          {name}
         </li>
       ))}
     </ol>
@@ -235,18 +298,19 @@ export function VerdictIsland({ events }: { events: AuditEvent[] }) {
 
   return (
     <div
-      className="pointer-events-none fixed top-2 left-1/2 z-40 -translate-x-1/2"
+      className="pointer-events-none fixed top-[68px] left-1/2 z-40 -translate-x-1/2"
       aria-live="polite"
     >
       <AnimatePresence mode="wait">
         {shown ? (
           <motion.div
             key={shown.id}
-            initial={still ? { opacity: 0 } : { opacity: 0, y: -12, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={still ? { opacity: 0 } : { opacity: 0, y: -12, scale: 0.96 }}
+            // it slides, it never fades, so the verdict is never shown at low contrast
+            initial={still ? false : { y: -12, scale: 0.96 }}
+            animate={{ y: 0, scale: 1 }}
+            exit={still ? undefined : { y: -12, scale: 0.96 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="border-line bg-raised flex items-center gap-2 rounded-full border px-3 py-1.5 shadow-lg"
+            className="border-line bg-surface flex items-center gap-2 rounded-full border px-3.5 py-2 shadow-lg"
           >
             <VerdictPill verdict={String(shown.payload.verdict)} />
             <span className="font-mono text-[12px]">{String(shown.payload.tool)}</span>
@@ -276,17 +340,15 @@ export function CommandPalette({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50" />
-        <Dialog.Content className="border-line bg-surface text-text fixed top-[18vh] left-1/2 z-50 w-[min(520px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-[6px] border shadow-lg">
+        <Dialog.Content className="border-line bg-surface text-text fixed top-[18vh] left-1/2 z-50 w-[min(520px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-[12px] border shadow-lg">
           <Dialog.Title className="sr-only">Command palette</Dialog.Title>
-          <Dialog.Description className="sr-only">
-            Run a workspace action by name.
-          </Dialog.Description>
+          <Dialog.Description className="sr-only">Run a studio action by name.</Dialog.Description>
           <Command label="Commands">
             <Command.Input
               placeholder="Type a command"
-              className="border-line placeholder:text-muted h-11 w-full border-b bg-transparent px-3 text-[14px] outline-none"
+              className="border-line placeholder:text-muted h-12 w-full border-b bg-transparent px-4 text-[14px] outline-none"
             />
-            <Command.List className="max-h-[320px] overflow-auto p-1">
+            <Command.List className="max-h-[320px] overflow-auto p-1.5">
               <Command.Empty className="text-muted p-3 text-[13px]">
                 No command matches.
               </Command.Empty>
@@ -298,7 +360,7 @@ export function CommandPalette({
                     action.run?.();
                     onOpenChange(false);
                   }}
-                  className="data-[selected=true]:bg-raised flex cursor-pointer items-center justify-between gap-3 rounded-[4px] px-2 py-2 text-[13px] data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50"
+                  className="data-[selected=true]:bg-raised flex cursor-pointer items-center justify-between gap-3 rounded-[7px] px-2.5 py-2 text-[13px] data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50"
                 >
                   {action.name}
                   {action.reason ? (
@@ -317,21 +379,20 @@ export function CommandPalette({
 export function SignIn({ ws }: { ws: Workspace }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const input = 'border-line bg-bg h-9 w-full rounded-[4px] border px-2 text-[14px]';
+  const input = 'border-line bg-bg mt-1.5 h-10 w-full rounded-[8px] border px-3 text-[14px]';
   function submit(event: FormEvent) {
     event.preventDefault();
     void ws.signIn(password, email);
   }
   return (
-    <form
-      onSubmit={submit}
-      className="border-line bg-surface w-full max-w-[380px] rounded-[6px] border p-5"
-    >
-      <h1 className="text-[20px] font-semibold">Sign in as the CFO</h1>
-      <p className="text-muted mt-1 text-[13px]">
-        Only the CFO can authorize a branch. This is a sandbox account for the demo.
+    <form onSubmit={submit} className="card w-full max-w-[400px] p-6">
+      <div className="eyebrow">Decision studio</div>
+      <h1 className="mt-2 text-[26px] leading-tight font-extrabold">Sign in as the CFO</h1>
+      <p className="text-muted mt-2 text-[13px] leading-relaxed">
+        Only the CFO can approve a plan. This is a sandbox account for the demo, and no real money
+        moves.
       </p>
-      <label className="label mt-4 block" htmlFor="email">
+      <label className="label mt-5 block" htmlFor="email">
         Email
       </label>
       <input
@@ -343,7 +404,7 @@ export function SignIn({ ws }: { ws: Workspace }) {
         onChange={(event) => setEmail(event.target.value)}
         className={input}
       />
-      <label className="label mt-3 block" htmlFor="password">
+      <label className="label mt-4 block" htmlFor="password">
         Password
       </label>
       <input
@@ -355,7 +416,7 @@ export function SignIn({ ws }: { ws: Workspace }) {
         onChange={(event) => setPassword(event.target.value)}
         className={input}
       />
-      <Button variant="primary" type="submit" disabled={Boolean(ws.busy)} className="mt-4 w-full">
+      <Button variant="primary" type="submit" disabled={Boolean(ws.busy)} className="mt-5 w-full">
         Sign in
       </Button>
     </form>

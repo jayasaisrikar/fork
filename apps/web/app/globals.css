@@ -1,35 +1,52 @@
 @import 'tailwindcss';
 
 :root {
-  --bg: #f4f5f3;
+  --bg: #f5f7f4;
   --surface: #ffffff;
-  --raised: #eceeeb;
-  --line: #d8dcd8;
-  --text: #121614;
-  --muted: #58625d;
-  --accent: #0e6e64;
+  --raised: #edf2ed;
+  --line: #dce5de;
+  --text: #15251e;
+  --muted: #55665c;
+  --accent: #276c52;
+  --mint: #e8f4e9;
+  --ink: #13251d;
+  --on-ink: #ffffff;
   --sim: #46598a;
-  --allow: #167a47;
-  --hold: #9a6200;
-  --block: #b8301c;
+  --allow: #17694a;
+  --hold: #7d5a12;
+  --block: #a8442f;
   --fork-reject: #6b3f86;
-  --unknown: #58625d;
+  --unknown: #55665c;
+  /* the dark band used for the hero and the situation bar. it stays dark in both themes. */
+  --panel: #12251d;
+  --panel-raised: #1a3227;
+  --panel-line: #345544;
+  --panel-text: #f3faf3;
+  --panel-muted: #afc6ba;
+  --bright: #9beaab;
+  --warm: #ffb3a3;
 }
 
 [data-theme='dark'] {
-  --bg: #0b0e0d;
-  --surface: #121614;
-  --raised: #191e1c;
-  --line: #252c29;
-  --text: #e4eae7;
-  --muted: #8a9590;
-  --accent: #3bbfae;
-  --sim: #8fa3c8;
-  --allow: #46c487;
-  --hold: #e3a93a;
-  --block: #ef6a55;
-  --fork-reject: #c9a0dc;
-  --unknown: #8a9590;
+  --bg: #111b16;
+  --surface: #1a2921;
+  --raised: #22342a;
+  --line: #34473a;
+  --text: #e5f1e8;
+  --muted: #9caf9d;
+  --accent: #9ce6ad;
+  --mint: #234131;
+  --ink: #c5eacb;
+  --on-ink: #152a1b;
+  --sim: #a9b9da;
+  --allow: #8fe0a6;
+  --hold: #ead39b;
+  --block: #ffa89d;
+  --fork-reject: #d3b0e6;
+  --unknown: #9caf9d;
+  --panel: #0c1510;
+  --panel-raised: #14231a;
+  --panel-line: #2b4133;
 }
 
 @theme inline {
@@ -40,21 +57,32 @@
   --color-text: var(--text);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-mint: var(--mint);
+  --color-ink: var(--ink);
+  --color-on-ink: var(--on-ink);
   --color-sim: var(--sim);
   --color-allow: var(--allow);
   --color-hold: var(--hold);
   --color-block: var(--block);
   --color-fork-reject: var(--fork-reject);
   --color-unknown: var(--unknown);
-  --font-sans: var(--font-plex-sans);
+  --color-panel: var(--panel);
+  --color-panel-raised: var(--panel-raised);
+  --color-panel-line: var(--panel-line);
+  --color-panel-text: var(--panel-text);
+  --color-panel-muted: var(--panel-muted);
+  --color-bright: var(--bright);
+  --color-warm: var(--warm);
+  --font-sans: var(--font-manrope);
   --font-mono: var(--font-plex-mono);
-  --font-display: var(--font-archivo);
+  --font-display: var(--font-manrope);
 }
 
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-plex-sans), sans-serif;
+  font-family: var(--font-manrope), sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 * {
@@ -62,31 +90,77 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 3px solid color-mix(in srgb, var(--accent) 70%, transparent);
   outline-offset: 2px;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.035em;
 }
 
 @utility label {
   font-size: 11px;
   line-height: 16px;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+@utility eyebrow {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
 
 @utility money {
   font-family: var(--font-plex-mono), monospace;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
   white-space: nowrap;
+}
+
+/* big figures: the body face, tight, with lined-up digits */
+@utility figure {
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@utility card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
 }
 
 /* stripes mark what FORK itself refused */
 @utility hatch {
   background-image: repeating-linear-gradient(
     135deg,
-    color-mix(in srgb, var(--fork-reject) 18%, transparent) 0 6px,
+    color-mix(in srgb, var(--fork-reject) 12%, transparent) 0 6px,
     transparent 6px 12px
   );
+}
+
+details > summary {
+  list-style: none;
+  cursor: pointer;
+}
+details > summary::-webkit-details-marker {
+  display: none;
+}
+details > summary .chevron {
+  transition: transform 150ms ease-out;
+}
+details[open] > summary .chevron {
+  transform: rotate(180deg);
 }
 
 .react-flow .react-flow__attribution {
@@ -114,4 +188,13 @@ body {
 }
 .rail-row {
   animation: rail-in 150ms ease-out;
+}
+
+@keyframes shimmer {
+  50% {
+    opacity: 0.55;
+  }
+}
+.shimmer {
+  animation: shimmer 1.4s ease-in-out infinite;
 }

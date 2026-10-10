@@ -37,10 +37,10 @@ const hidden = { opacity: 0, width: 1, height: 1, border: 0, minWidth: 0, minHei
 
 function BaseNode({ data }: NodeProps<Node<BaseData>>) {
   return (
-    <div className="border-line bg-surface w-[150px] rounded-[6px] border p-3">
-      <div className="label">Base</div>
-      <div className="money mt-1 text-[16px] font-medium">{usdShort(data.cashCents)}</div>
-      <div className="text-muted text-[11px]">Cash before any branch</div>
+    <div className="bg-panel text-panel-text w-[150px] rounded-[10px] p-3">
+      <div className="text-panel-muted text-[11px] font-bold tracking-[0.1em] uppercase">Start</div>
+      <div className="figure mt-1 text-[18px]">{usdShort(data.cashCents)}</div>
+      <div className="text-panel-muted text-[11px]">Cash before any plan</div>
       <Handle type="source" position={Position.Right} style={hidden} />
     </div>
   );
@@ -69,14 +69,14 @@ function StubNode({ data }: NodeProps<Node<StubData>>) {
   const byArmor = step.source === 'armoriq';
   return (
     <div
-      className={`bg-surface flex items-center gap-2 rounded-[4px] border border-dashed px-2 py-1 ${byArmor ? 'border-block' : 'border-fork-reject'}`}
+      className={`bg-surface flex items-center gap-2 rounded-[7px] border border-dashed px-2 py-1 ${byArmor ? 'border-block' : 'border-fork-reject'}`}
     >
       <Handle type="target" position={Position.Left} style={hidden} />
       <span className="font-mono text-[11px]">{step.tool}</span>
       {byArmor ? <VerdictPill verdict={step.verdict} /> : null}
       <span className={`text-[11px] font-medium ${byArmor ? 'text-block' : 'text-fork-reject'}`}>
         {byArmor
-          ? 'BLOCKED by ArmorIQ'
+          ? 'Blocked by ArmorIQ'
           : step.source === 'mcp'
             ? 'Refused by the MCP'
             : 'Rejected by FORK'}
@@ -251,7 +251,7 @@ function layout(
 function Controls() {
   const flow = useReactFlow();
   const button =
-    'border-line bg-surface hover:bg-raised flex h-7 w-7 items-center justify-center rounded-[4px] border';
+    'border-line bg-surface hover:bg-raised flex h-8 w-8 items-center justify-center rounded-[7px] border';
   return (
     <div className="absolute right-3 bottom-3 z-10 flex gap-1">
       <Hint text="Zoom out">
@@ -316,7 +316,7 @@ function Graph(props: CanvasProps) {
       fitViewOptions={{ padding: 0.12 }}
       minZoom={0.35}
       maxZoom={1.1}
-      aria-label="Branch graph"
+      aria-label="Branch map"
     >
       <Controls />
     </ReactFlow>
@@ -328,38 +328,5 @@ export function BranchCanvas(props: CanvasProps) {
     <ReactFlowProvider>
       <Graph {...props} />
     </ReactFlowProvider>
-  );
-}
-
-// same information as the graph, as a plain list. used on phones and for anyone who prefers it.
-export function BranchList({ branches, steps, selectedId, onSelect }: CanvasProps) {
-  return (
-    <ol className="flex flex-col gap-3 overflow-auto p-3" aria-label="Branches">
-      {branches.map((branch) => (
-        <li key={branch.id} className={branch.parentId ? 'ml-6' : ''}>
-          <BranchCard
-            branch={branch}
-            selected={branch.id === selectedId}
-            onSelect={() => onSelect(branch.id)}
-          />
-          {refusedSteps(steps, branch.id).map((step) => (
-            <div
-              key={step.id}
-              className="mt-1.5 ml-4 flex flex-wrap items-center gap-2 text-[12px]"
-            >
-              <span className="font-mono">{step.tool}</span>
-              {step.source === 'armoriq' ? <VerdictPill verdict={step.verdict} /> : null}
-              <span className={step.source === 'armoriq' ? 'text-block' : 'text-fork-reject'}>
-                {step.source === 'armoriq'
-                  ? 'BLOCKED by ArmorIQ'
-                  : step.source === 'mcp'
-                    ? 'Refused by the MCP'
-                    : 'Rejected by FORK'}
-              </span>
-            </div>
-          ))}
-        </li>
-      ))}
-    </ol>
   );
 }

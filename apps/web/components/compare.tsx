@@ -15,12 +15,12 @@ import {
 } from 'recharts';
 import { day, usd, usdShort } from '@/lib/format';
 import type { Branch, Scenario } from '@/lib/types';
-import { Chip, Money } from './primitives';
+import { Money, Tag } from './primitives';
 
 const tab =
-  'text-muted data-[state=active]:text-text data-[state=active]:border-accent -mb-px h-9 border-b-2 border-transparent px-3 text-[12px] font-medium';
-const th = 'label px-3 py-2 text-right font-normal first:text-left';
-const td = 'money px-3 text-right';
+  'text-muted data-[state=active]:text-text data-[state=active]:border-accent -mb-px h-10 border-b-2 border-transparent px-3 text-[13px] font-bold';
+const th = 'label px-3 py-2.5 text-right first:pl-5 first:text-left last:pr-5';
+const td = 'money px-3 text-right last:pr-5';
 
 function best(values: number[], pick: 'max' | 'min') {
   return pick === 'max' ? Math.max(...values) : Math.min(...values);
@@ -37,7 +37,7 @@ function CompareTable({
 }) {
   const rows = branches.filter((branch) => branch.projection);
   if (!rows.length)
-    return <p className="text-muted p-3 text-[13px]">Simulate the branches to compare them.</p>;
+    return <p className="text-muted p-5 text-[13px]">Run the numbers to compare plans.</p>;
   const column = (get: (branch: Branch) => number, pick: 'max' | 'min') => {
     const target = best(rows.map(get), pick);
     return (branch: Branch) => (get(branch) === target ? 'text-text' : 'text-muted');
@@ -53,13 +53,13 @@ function CompareTable({
       <table className="w-full min-w-[620px] border-collapse text-[13px]">
         <thead>
           <tr className="border-line border-b">
-            <th className={th}>Branch</th>
-            <th className={th}>Cash after</th>
+            <th className={th}>Plan</th>
+            <th className={th}>Cash left</th>
             <th className={th}>Lowest cash</th>
             <th className={th}>Reserve</th>
             <th className={th}>Late fees</th>
             <th className={th}>Deferred</th>
-            <th className={th}>Approvals</th>
+            <th className={th}>Sign-offs</th>
           </tr>
         </thead>
         <tbody>
@@ -67,10 +67,10 @@ function CompareTable({
             <tr
               key={branch.id}
               onClick={() => onSelect(branch.id)}
-              className={`border-line h-9 cursor-pointer border-b last:border-0 ${branch.id === selectedId ? 'bg-raised' : 'hover:bg-raised'}`}
+              className={`border-line h-11 cursor-pointer border-b last:border-0 ${branch.id === selectedId ? 'bg-mint' : 'hover:bg-raised'}`}
             >
-              <td className="px-3 whitespace-nowrap">
-                <span className="font-display mr-2 font-extrabold">{branch.label}</span>
+              <td className="px-3 pl-5 font-bold whitespace-nowrap">
+                <span className="mr-2 font-extrabold">{branch.label}</span>
                 {branch.title}
               </td>
               <td className={`${td} ${cash(branch)}`}>
@@ -81,7 +81,7 @@ function CompareTable({
               </td>
               <td className="px-3 text-right">
                 {branch.projection!.reserveBreached ? (
-                  <Chip tone="text">Breach</Chip>
+                  <Tag tone="bad">Breach</Tag>
                 ) : (
                   <span className="text-muted">Held</span>
                 )}
@@ -111,7 +111,7 @@ function CashPath({
   const rows = branches.filter((branch) => branch.projection);
   if (!rows.length)
     return (
-      <p className="text-muted p-3 text-[13px]">Simulate the branches to see their cash paths.</p>
+      <p className="text-muted p-5 text-[13px]">Run the numbers to see each plan's cash path.</p>
     );
   const dates = rows[0]!.projection!.cashPath.map((point) => point.date);
   const data = dates.map((date, i) => ({
@@ -126,7 +126,7 @@ function CashPath({
     <div
       className="h-[220px] w-full p-2"
       role="img"
-      aria-label="Projected cash over 14 days for each branch"
+      aria-label="Projected cash over 14 days for each plan"
     >
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 12, right: 64, bottom: 0, left: 8 }}>
@@ -161,12 +161,12 @@ function CashPath({
             contentStyle={{
               background: 'var(--raised)',
               border: '1px solid var(--line)',
-              borderRadius: 4,
+              borderRadius: 8,
               fontFamily: 'var(--font-plex-mono)',
               fontSize: 12,
             }}
             labelFormatter={(label) => day(String(label))}
-            formatter={(value, name) => [usd(Number(value)), `Branch ${name}`]}
+            formatter={(value, name) => [usd(Number(value)), `Plan ${name}`]}
           />
           {rows.map((branch) => {
             const selected = branch.id === selectedId;
@@ -214,17 +214,15 @@ function Diff({ branches, scenario }: { branches: Branch[]; scenario: Scenario }
   const [left, setLeft] = useState<string | undefined>();
   const [right, setRight] = useState<string | undefined>();
   if (rows.length < 2)
-    return (
-      <p className="text-muted p-3 text-[13px]">Two simulated branches are needed for a diff.</p>
-    );
+    return <p className="text-muted p-5 text-[13px]">Two simulated plans are needed for a diff.</p>;
   const a = rows.find((branch) => branch.id === left) ?? rows[0]!;
   const b = rows.find((branch) => branch.id === right) ?? rows[1]!;
-  const select = 'border-line bg-surface h-7 rounded-[4px] border px-2 text-[12px]';
+  const select = 'border-line bg-surface h-8 rounded-[7px] border px-2 text-[12px]';
   const vendor = (id: string) => scenario.vendors.find((item) => item.id === id)?.name ?? id;
 
   return (
     <div className="overflow-auto">
-      <div className="flex items-center gap-2 p-3">
+      <div className="flex flex-wrap items-center gap-2 px-5 py-3">
         <label className="text-muted text-[12px]" htmlFor="diff-a">
           Compare
         </label>
@@ -271,8 +269,8 @@ function Diff({ branches, scenario }: { branches: Branch[]; scenario: Scenario }
             const other = b.projection!.lines.find((item) => item.invoiceId === line.invoiceId);
             const differs = other?.paidCents !== line.paidCents;
             return (
-              <tr key={line.invoiceId} className="border-line h-9 border-b last:border-0">
-                <td className="px-3">
+              <tr key={line.invoiceId} className="border-line h-10 border-b last:border-0">
+                <td className="px-3 pl-5">
                   <span className="text-muted mr-2 font-mono text-[12px]">{line.invoiceId}</span>
                   {vendor(line.vendorId)}
                 </td>
@@ -305,25 +303,21 @@ export function Compare({
   onSelect: (id: string) => void;
 }) {
   return (
-    <Tabs.Root
-      defaultValue="table"
-      className="border-line bg-surface flex min-h-0 flex-col rounded-[6px] border"
-    >
-      <Tabs.List
-        className="border-line flex shrink-0 items-center border-b px-1"
-        aria-label="Compare branches"
-      >
-        <span className="label px-2">Compare</span>
-        <Tabs.Trigger value="table" className={tab}>
-          Table
-        </Tabs.Trigger>
-        <Tabs.Trigger value="path" className={tab}>
-          Cash path
-        </Tabs.Trigger>
-        <Tabs.Trigger value="diff" className={tab}>
-          Diff
-        </Tabs.Trigger>
-      </Tabs.List>
+    <Tabs.Root defaultValue="table" className="card flex min-h-0 flex-col overflow-hidden">
+      <div className="border-line flex shrink-0 flex-wrap items-end justify-between gap-x-4 border-b px-5 pt-4">
+        <h2 className="pb-3 text-[18px] leading-tight font-extrabold">Compare side by side</h2>
+        <Tabs.List className="flex" aria-label="Compare plans">
+          <Tabs.Trigger value="table" className={tab}>
+            Table
+          </Tabs.Trigger>
+          <Tabs.Trigger value="path" className={tab}>
+            Cash path
+          </Tabs.Trigger>
+          <Tabs.Trigger value="diff" className={tab}>
+            Diff
+          </Tabs.Trigger>
+        </Tabs.List>
+      </div>
       <Tabs.Content value="table" className="min-h-0 flex-1 overflow-auto">
         <CompareTable branches={branches} selectedId={selectedId} onSelect={onSelect} />
       </Tabs.Content>

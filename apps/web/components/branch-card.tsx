@@ -1,24 +1,12 @@
 'use client';
 
 import { motion, useReducedMotion } from 'motion/react';
+import { statusOf } from '@/lib/describe';
 import { shortHash, usdShort } from '@/lib/format';
 import type { Branch } from '@/lib/types';
-import { Chip, Money, SourcePill } from './primitives';
+import { Money, SourcePill, Tag } from './primitives';
 
-const STATUS: Record<Branch['status'], string> = {
-  PROPOSED: 'Proposed',
-  SIMULATED: 'Simulated',
-  APPROVED: 'Authorized',
-  COMMITTING: 'Committing',
-  COMMITTED: 'Committed',
-  PARTIALLY_COMMITTED: 'Partially committed',
-  BLOCKED: 'Blocked',
-  CANCELLED: 'Cancelled',
-  INFEASIBLE: 'Rejected by FORK',
-  STALE: 'Stale',
-};
-
-export const statusText = (status: Branch['status']) => STATUS[status];
+export const statusText = (status: Branch['status']) => statusOf(status).text;
 
 // a ring that draws itself once, when the CFO signs
 export function AuthorizationSeal({ hash, size = 44 }: { hash: string; size?: number }) {
@@ -26,7 +14,7 @@ export function AuthorizationSeal({ hash, size = 44 }: { hash: string; size?: nu
   const radius = size / 2 - 3;
   const length = 2 * Math.PI * radius;
   return (
-    <div className="flex items-center gap-2" aria-label={`Authorized, plan hash ${hash}`}>
+    <div className="flex items-center gap-2.5" aria-label={`Authorized, plan hash ${hash}`}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
         <motion.circle
           cx={size / 2}
@@ -49,10 +37,95 @@ export function AuthorizationSeal({ hash, size = 44 }: { hash: string; size?: nu
         />
       </svg>
       <div className="leading-tight">
-        <div className="text-accent text-[12px] font-semibold">Authorized</div>
+        <div className="text-accent text-[12px] font-extrabold">Approved by the CFO</div>
         <div className="text-muted font-mono text-[11px]">{shortHash(hash)}</div>
       </div>
     </div>
+  );
+}
+
+function StatusTags({ branch, best }: { branch: Branch; best?: boolean }) {
+  const status = statusOf(branch.status);
+  return (
+    <>
+      {branch.status === 'INFEASIBLE' ? <Tag tone="bad">Not possible</Tag> : null}
+      {branch.status === 'SIMULATED' ? (
+        <Tag tone={best ? 'good' : 'gray'}>{best ? 'Most cash left' : 'Alternative'}</Tag>
+      ) : (
+        <Tag tone={status.tone}>{status.text}</Tag>
+      )}
+      {branch.source !== 'agent' ? <SourcePill source={branch.source} /> : null}
+    </>
+  );
+}
+
+const frame = (branch: Branch, selected: boolean) => {
+  const unsigned = branch.source === 'replan' && !branch.approvedPlanHash;
+  return `text-left transition-colors ${
+    selected
+      ? 'border-accent bg-mint shadow-[inset_0_0_0_1px_var(--accent)]'
+      : 'border-line bg-surface hover:border-[color-mix(in_srgb,var(--accent)_45%,var(--line))]'
+  } ${unsigned ? 'border-dashed' : ''} ${branch.status === 'INFEASIBLE' && !selected ? 'hatch' : ''}`;
+};
+
+// one way forward, as a card you can pick. the studio's main control.
+export function PlanCard({
+  branch,
+  selected,
+  best,
+  onSelect,
+}: {
+  branch: Branch;
+  selected: boolean;
+  best?: boolean;
+  onSelect: () => void;
+}) {
+  const p = branch.projection;
+  const approvals = branch.risk?.approvalsNeeded ?? 0;
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`flex h-full min-h-[228px] w-full flex-col gap-2 rounded-[12px] border-[1.5px] p-4 ${frame(branch, selected)}`}
+    >
+      <span className="flex flex-wrap items-center gap-1.5">
+        <span className="border-line bg-surface mr-auto flex h-7 min-w-7 items-center justify-center rounded-[6px] border px-1.5 text-[13px] font-extrabold">
+          {branch.label}
+        </span>
+        <StatusTags branch={branch} best={best} />
+      </span>
+      <span className="mt-1 text-[15px] leading-snug font-extrabold">{branch.title}</span>
+      <span className="text-muted line-clamp-3 text-[12px] leading-relaxed">
+        {branch.rationale}
+      </span>
+      {p ? (
+        <>
+          <span className="mt-auto flex items-baseline gap-2 pt-2">
+            <span className={`figure text-[26px] ${p.cashAfterCents < 0 ? 'text-block' : ''}`}>
+              {usdShort(p.cashAfterCents)}
+            </span>
+            <span className="text-muted text-[12px]">cash left</span>
+          </span>
+          <span className="border-line text-muted flex flex-wrap justify-between gap-x-3 gap-y-0.5 border-t pt-2.5 text-[12px]">
+            <span>{usdShort(p.outflowCents)} paid</span>
+            <span>{usdShort(p.lateFeesCents)} fees</span>
+            <span>
+              {approvals} sign-off{approvals === 1 ? '' : 's'}
+            </span>
+          </span>
+        </>
+      ) : (
+        <span className="text-muted border-line mt-auto border-t pt-2.5 text-[12px]">
+          Numbers not run yet.
+        </span>
+      )}
+      {branch.approvedPlanHash ? (
+        <span className="border-line border-t pt-2.5">
+          <AuthorizationSeal hash={branch.approvedPlanHash} size={30} />
+        </span>
+      ) : null}
+    </button>
   );
 }
 
@@ -65,7 +138,7 @@ function Stat({ name, children }: { name: string; children: React.ReactNode }) {
   );
 }
 
-// the same card is used in the graph, the list view and on the landing page
+// the compact card used as a node in the branch map
 export function BranchCard({
   branch,
   selected,
@@ -78,28 +151,22 @@ export function BranchCard({
   width?: number;
 }) {
   const p = branch.projection;
-  const infeasible = branch.status === 'INFEASIBLE';
-  const unsigned = branch.source === 'replan' && !branch.approvedPlanHash;
   return (
     <button
       type="button"
       onClick={onSelect}
       aria-pressed={selected}
       style={{ width }}
-      className={`bg-surface rounded-[6px] border p-3 text-left ${selected ? 'border-accent' : 'border-line'} ${unsigned ? 'border-dashed' : ''} ${infeasible ? 'hatch' : ''}`}
+      className={`rounded-[10px] border-[1.5px] p-3 ${frame(branch, selected)}`}
     >
       <div className="flex items-start gap-2">
-        <span className="border-line font-display flex h-7 w-7 shrink-0 items-center justify-center rounded-[4px] border text-[14px] font-extrabold">
+        <span className="border-line bg-surface flex h-7 min-w-7 shrink-0 items-center justify-center rounded-[6px] border px-1 text-[13px] font-extrabold">
           {branch.label}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold">{branch.title}</div>
+          <div className="truncate text-[13px] font-extrabold">{branch.title}</div>
           <div className="mt-1 flex flex-wrap items-center gap-1">
-            {infeasible ? (
-              <Chip tone="text">{STATUS[branch.status]}</Chip>
-            ) : (
-              <Chip>{STATUS[branch.status]}</Chip>
-            )}
+            <Tag tone={statusOf(branch.status).tone}>{statusOf(branch.status).text}</Tag>
             <SourcePill source={branch.source} />
           </div>
         </div>
@@ -107,7 +174,7 @@ export function BranchCard({
 
       {p ? (
         <div className="border-line mt-2.5 space-y-0.5 border-t pt-2">
-          <Stat name="Cash after">
+          <Stat name="Cash left">
             <Money cents={p.cashAfterCents} className="font-medium" />
           </Stat>
           <Stat name="Deferred">
@@ -116,19 +183,19 @@ export function BranchCard({
           <Stat name="Late fees">
             <span className="money">{usdShort(p.lateFeesCents)}</span>
           </Stat>
-          <Stat name="Approvals needed">
+          <Stat name="Sign-offs needed">
             <span className="money">{branch.risk?.approvalsNeeded ?? 0}</span>
           </Stat>
         </div>
       ) : (
         <p className="text-muted border-line mt-2.5 border-t pt-2 text-[12px]">
-          Not simulated yet.
+          Numbers not run yet.
         </p>
       )}
 
       {branch.approvedPlanHash ? (
         <div className="border-line mt-2.5 border-t pt-2.5">
-          <AuthorizationSeal hash={branch.approvedPlanHash} size={32} />
+          <AuthorizationSeal hash={branch.approvedPlanHash} size={30} />
         </div>
       ) : null}
     </button>

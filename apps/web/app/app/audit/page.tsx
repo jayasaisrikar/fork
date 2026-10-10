@@ -5,7 +5,7 @@ import { Dialog } from 'radix-ui';
 import { X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
-import { SourcePill, VerdictPill } from '@/components/primitives';
+import { buttonClass, SourcePill, VerdictPill } from '@/components/primitives';
 import { api, ENGINE_URL } from '@/lib/api';
 import { shortHash } from '@/lib/format';
 import type { AuditEvent } from '@/lib/types';
@@ -14,13 +14,36 @@ const features = tableFeatures({});
 const column = createColumnHelper<typeof features, AuditEvent>();
 
 const VERDICTS = [
-  ['', 'All'],
-  ['allow', 'ALLOW'],
-  ['hold', 'HOLD'],
-  ['block', 'BLOCK'],
-  ['rejected_by_fork', 'REJECTED BY FORK'],
-  ['error', 'ERROR'],
+  ['', 'All activity'],
+  ['allow', 'Allowed'],
+  ['hold', 'Held'],
+  ['block', 'Blocked'],
+  ['rejected_by_fork', 'Rejected by FORK'],
+  ['error', 'Errors'],
 ] as const;
+
+// the event type in plain words. the exact type stays in the next column.
+const PLAIN: Record<string, string> = {
+  'run.created': 'A decision was started',
+  'branch.proposed': 'The agent proposed a plan',
+  'branch.simulated': 'FORK ran the numbers on a plan',
+  'branch.rejected_by_fork': 'FORK rejected a plan that cannot be paid for',
+  'branch.approved': 'The CFO approved a plan',
+  'branch.authorized': 'The approved plan was frozen and hashed',
+  'plan.signed': 'ArmorIQ signed the approved plan',
+  'branch.committing': 'Execution started',
+  'step.executed': 'A call was allowed and executed',
+  'step.not_executed': 'A call was not executed',
+  'step.held': 'A payment is waiting for a person',
+  'message.injected': 'A message arrived in the inbox',
+  'agent.inbox_handled': 'The inbox agent acted on a message',
+  'branch.committed': 'The plan completed',
+  'branch.partially_committed': 'The plan stopped early',
+  'branch.blocked': 'The plan was blocked',
+  'branch.cancelled': 'The plan was cancelled',
+  'ledger.reconciled': 'The ledger was reconciled',
+};
+const plain = (type: string) => PLAIN[type] ?? type.replace(/[._]/g, ' ');
 const SOURCES = ['', 'agent', 'fork', 'armoriq', 'mcp', 'ledger', 'human'];
 
 const reference = (event: AuditEvent) => {
@@ -33,6 +56,11 @@ const reference = (event: AuditEvent) => {
 };
 
 const columns = [
+  column.display({
+    id: 'what',
+    header: 'What happened',
+    cell: ({ row }) => <span className="font-bold">{plain(row.original.type)}</span>,
+  }),
   column.display({
     id: 'time',
     header: 'Time (UTC)',
@@ -58,7 +86,7 @@ const columns = [
   column.display({ id: 'actor', header: 'Actor', cell: ({ row }) => row.original.actor }),
   column.display({
     id: 'action',
-    header: 'Intended action',
+    header: 'Event or tool',
     cell: ({ row }) => (
       <span className="font-mono">{String(row.original.payload.tool ?? row.original.type)}</span>
     ),
@@ -70,14 +98,6 @@ const columns = [
       row.original.payload.verdict ? (
         <VerdictPill verdict={String(row.original.payload.verdict)} />
       ) : null,
-  }),
-  column.display({
-    id: 'outcome',
-    header: 'Outcome',
-    cell: ({ row }) =>
-      row.original.type.startsWith('step.')
-        ? row.original.type.slice(5).replace('_', ' ')
-        : row.original.type.split('.').at(-1)?.replace(/_/g, ' '),
   }),
   column.display({
     id: 'ref',
@@ -114,29 +134,31 @@ function Ledger() {
   }, [query]);
 
   const table = useTable<typeof features, AuditEvent>({ features, columns, data: events ?? [] });
-  const input = 'border-line bg-surface h-8 rounded-[4px] border px-2 text-[13px]';
-  const exportLink =
-    'border-line hover:bg-raised inline-flex h-8 items-center rounded-[4px] border px-3 text-[13px] font-medium';
+  const input = 'border-line bg-surface h-9 rounded-[8px] border px-2.5 text-[13px]';
 
   return (
     <>
-      <h1 className="text-[28px] font-semibold">Evidence ledger</h1>
-      <p className="text-muted mt-1 max-w-[70ch] text-[13px]">
-        Every event FORK recorded, newest first. The log is append-only: the database refuses
-        updates and deletes.
+      <div className="eyebrow">Activity</div>
+      <h1 className="mt-3 text-[34px] leading-[1.08] font-extrabold sm:text-[40px]">
+        Nothing happens quietly.
+      </h1>
+      <p className="text-muted mt-2 max-w-[70ch] text-[14px]">
+        Everything agents proposed, people approved, and safeguards prevented, newest first. The log
+        is append-only: the database refuses updates and deletes. Select a row to read the full
+        request and response.
       </p>
 
-      <div className="mt-4 flex flex-wrap items-end gap-3">
+      <div className="mt-6 flex flex-wrap items-end gap-3">
         <fieldset>
-          <legend className="label mb-1">Verdict</legend>
-          <div className="flex flex-wrap gap-1">
+          <legend className="label mb-1.5">Show</legend>
+          <div className="flex flex-wrap gap-1.5">
             {VERDICTS.map(([value, name]) => (
               <button
                 key={name}
                 type="button"
                 aria-pressed={verdict === value}
                 onClick={() => setVerdict(value)}
-                className={`h-8 rounded-[4px] border px-2 text-[12px] font-medium ${verdict === value ? 'border-accent text-text' : 'border-line text-muted hover:text-text'}`}
+                className={`h-9 rounded-[8px] border px-3 text-[12px] font-bold ${verdict === value ? 'bg-ink text-on-ink border-ink' : 'bg-surface border-line text-muted hover:text-text'}`}
               >
                 {name}
               </button>
@@ -144,7 +166,7 @@ function Ledger() {
           </div>
         </fieldset>
         <label className="flex flex-col">
-          <span className="label mb-1">Source</span>
+          <span className="label mb-1.5">Source</span>
           <select
             value={source}
             onChange={(event) => setSource(event.target.value)}
@@ -158,7 +180,7 @@ function Ledger() {
           </select>
         </label>
         <label className="flex flex-col">
-          <span className="label mb-1">Run</span>
+          <span className="label mb-1.5">Run</span>
           <input
             value={run}
             onChange={(event) => setRun(event.target.value)}
@@ -167,7 +189,7 @@ function Ledger() {
           />
         </label>
         <label className="flex min-w-[200px] flex-1 flex-col">
-          <span className="label mb-1">Search</span>
+          <span className="label mb-1.5">Search</span>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -176,22 +198,30 @@ function Ledger() {
           />
         </label>
         <div className="flex gap-2">
-          <a className={exportLink} href={`${ENGINE_URL}/api/audit?format=json&${query}`} download>
+          <a
+            className={buttonClass('secondary', 'sm')}
+            href={`${ENGINE_URL}/api/audit?format=json&${query}`}
+            download
+          >
             Export JSON
           </a>
-          <a className={exportLink} href={`${ENGINE_URL}/api/audit?format=csv&${query}`} download>
+          <a
+            className={buttonClass('secondary', 'sm')}
+            href={`${ENGINE_URL}/api/audit?format=csv&${query}`}
+            download
+          >
             Export CSV
           </a>
         </div>
       </div>
 
-      <div className="border-line mt-4 overflow-x-auto rounded-[6px] border">
-        <table className="bg-surface w-full min-w-[900px] border-collapse text-[12px]">
+      <div className="card mt-4 overflow-x-auto">
+        <table className="w-full min-w-[1040px] border-collapse text-[12px]">
           <thead>
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id} className="border-line border-b">
                 {group.headers.map((header) => (
-                  <th key={header.id} className="label px-3 py-2 text-left font-normal">
+                  <th key={header.id} className="label px-3 py-3 text-left first:pl-5">
                     {flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
                 ))}
@@ -205,10 +235,10 @@ function Ledger() {
                 tabIndex={0}
                 onClick={() => setOpen(row.original)}
                 onKeyDown={(event) => event.key === 'Enter' && setOpen(row.original)}
-                className="border-line hover:bg-raised h-9 cursor-pointer border-b last:border-0"
+                className="border-line hover:bg-raised h-11 cursor-pointer border-b last:border-0"
               >
                 {row.getAllCells().map((cell) => (
-                  <td key={cell.id} className="px-3 whitespace-nowrap">
+                  <td key={cell.id} className="px-3 whitespace-nowrap first:pl-5">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
@@ -217,36 +247,39 @@ function Ledger() {
           </tbody>
         </table>
         {events && !events.length ? (
-          <p className="text-muted p-3 text-[13px]">No events match these filters.</p>
+          <p className="text-muted p-5 text-[13px]">No events match these filters.</p>
         ) : null}
-        {!events ? <p className="text-muted p-3 text-[13px]">Loading events…</p> : null}
+        {!events ? <p className="text-muted p-5 text-[13px]">Loading events…</p> : null}
       </div>
       {events ? <p className="text-muted mt-2 text-[12px]">{events.length} events shown.</p> : null}
 
       <Dialog.Root open={Boolean(open)} onOpenChange={(next) => !next && setOpen(null)}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
-          <Dialog.Content className="border-line bg-surface text-text fixed top-0 right-0 z-50 flex h-full w-full max-w-[520px] flex-col border-l p-4">
+          <Dialog.Content className="border-line bg-surface text-text fixed top-0 right-0 z-50 flex h-full w-full max-w-[540px] flex-col border-l p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <Dialog.Title className="font-mono text-[14px] font-semibold">
-                  {open?.type}
+                <Dialog.Title className="text-[20px] leading-tight font-extrabold">
+                  {open ? plain(open.type) : null}
                 </Dialog.Title>
                 <Dialog.Description className="text-muted mt-1 text-[12px]">
-                  Event {open?.id}, recorded by {open?.source}. Secrets are stripped before anything
-                  is stored.
+                  <span className="font-mono">{open?.type}</span>, event {open?.id}, recorded by{' '}
+                  {open?.source}. Secrets are stripped before anything is stored.
                 </Dialog.Description>
               </div>
-              <Dialog.Close aria-label="Close event" className="hover:bg-raised rounded-[4px] p-1">
+              <Dialog.Close
+                aria-label="Close event"
+                className="hover:bg-raised rounded-[7px] p-1.5"
+              >
                 <X size={16} strokeWidth={1.5} />
               </Dialog.Close>
             </div>
             <div className="label mt-4">References</div>
-            <pre className="border-line bg-bg mt-1 overflow-auto rounded-[4px] border p-2 font-mono text-[12px] whitespace-pre-wrap">
+            <pre className="border-line bg-bg mt-1 overflow-auto rounded-[9px] border p-3 font-mono text-[12px] whitespace-pre-wrap">
               {JSON.stringify(open?.refs, null, 2)}
             </pre>
             <div className="label mt-4">Request and response</div>
-            <pre className="border-line bg-bg mt-1 min-h-0 flex-1 overflow-auto rounded-[4px] border p-2 font-mono text-[12px] whitespace-pre-wrap">
+            <pre className="border-line bg-bg mt-1 min-h-0 flex-1 overflow-auto rounded-[9px] border p-3 font-mono text-[12px] whitespace-pre-wrap">
               {JSON.stringify(open?.payload, null, 2)}
             </pre>
           </Dialog.Content>
@@ -258,7 +291,7 @@ function Ledger() {
 
 export default function AuditPage() {
   return (
-    <AppShell active="Audit">
+    <AppShell active="Activity">
       <Ledger />
     </AppShell>
   );

@@ -1,24 +1,21 @@
 'use client';
 
-import { Moon, Sun } from 'lucide-react';
-import { Tooltip } from 'radix-ui';
+import { ArrowRight, ArrowUpRight, Ban, Check, Mail } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { clock, shortHash, usd } from '@/lib/format';
+import { useCallback, useMemo, useState } from 'react';
+import { describeStep } from '@/lib/describe';
+import { clock, usd, usdShort } from '@/lib/format';
 import type { AuditEvent, RunView } from '@/lib/types';
-import { AuthorizationSeal, statusText } from './branch-card';
+import { statusText } from './branch-card';
 import { BranchCanvas } from './branch-canvas';
-import { Wordmark } from './chrome';
-import { Chip, HashChip, Money, SourcePill, VerdictPill } from './primitives';
+import { Shell } from './chrome';
+import { buttonClass, Chip, HashChip, SourcePill, Tag, VerdictPill } from './primitives';
 
 const REPO = process.env.NEXT_PUBLIC_REPO_URL;
 const IC3_REPORT = 'https://www.ic3.gov/AnnualReport/Reports/2025_IC3Report.pdf';
 
-const cta = 'inline-flex h-10 items-center rounded-[4px] border px-4 text-[14px] font-medium';
-const primary = `${cta} bg-accent border-accent text-surface hover:opacity-90`;
-const secondary = `${cta} border-line hover:bg-raised`;
-const section = 'border-line border-t py-16';
-const h2 = 'font-display text-[28px] leading-tight font-extrabold [font-stretch:115%]';
+const wrap = 'mx-auto w-full max-w-[1240px] px-4 lg:px-8';
+const h2 = 'text-[30px] leading-[1.1] font-extrabold sm:text-[38px]';
 
 export interface Recorded {
   recordedAt: string;
@@ -27,217 +24,252 @@ export interface Recorded {
   events: AuditEvent[];
 }
 
-function Hero({ record }: { record: Recorded }) {
+function SectionEyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="eyebrow flex items-center gap-3">
+      <span className="bg-accent h-0.5 w-[18px]" aria-hidden />
+      {children}
+    </div>
+  );
+}
+
+function Hero({
+  record,
+  picked,
+  onPick,
+}: {
+  record: Recorded;
+  picked: string;
+  onPick: (id: string) => void;
+}) {
   const { view } = record;
-  const [picked, setPicked] = useState(record.branchId);
-  const select = useCallback((id: string) => setPicked(id), []);
+  const state = view.snapshot.state;
+  const due = state.invoices.reduce((sum, item) => sum + item.amountCents - item.paidCents, 0);
+  const gap = due - state.cashCents;
   const branch = view.branches.find((item) => item.id === picked) ?? view.branches[0]!;
-  const branches = useMemo(() => view.branches, [view]);
-  const steps = useMemo(() => view.steps, [view]);
   const approvals = branch.risk?.approvalsNeeded ?? 0;
 
   return (
-    <section className="py-14 lg:py-20">
-      <div className="grid items-end gap-10 lg:grid-cols-[55fr_45fr]">
+    <section className="bg-panel text-panel-text relative overflow-hidden">
+      {/* faint rings, the only decoration on the page */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-[250px] -right-[140px] h-[650px] w-[650px] rounded-full border border-[color-mix(in_srgb,var(--bright)_9%,transparent)] shadow-[0_0_0_110px_color-mix(in_srgb,var(--bright)_2%,transparent),0_0_0_220px_color-mix(in_srgb,var(--bright)_1%,transparent)]"
+      />
+      <div
+        className={`${wrap} relative grid grid-cols-1 items-center gap-12 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:py-24`}
+      >
         <div>
-          <p className="label">Execution harness for autonomous agents</p>
-          <h1 className="font-display mt-4 text-[40px] leading-[1.02] font-extrabold [font-stretch:118%] sm:text-[64px] xl:text-[80px]">
-            Explore every outcome. <span className="text-accent">Commit only one.</span>
-          </h1>
-          <p className="mt-6 max-w-[52ch] text-[16px] leading-relaxed">
-            Agents branch decisions against an isolated copy of the books. A human authorizes one
-            exact plan. ArmorIQ enforces it on every tool call.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/app" className={primary}>
-              Open the workspace
-            </Link>
-            <a href="#how" className={secondary}>
-              Read how it works
-            </a>
+          <div className="text-bright text-[11px] font-extrabold tracking-[0.14em] uppercase">
+            Execution harness for autonomous agents
           </div>
-          <p className="text-muted mt-6 font-mono text-[12px]">
-            Sandbox ledger. Real ArmorIQ enforcement.
+          <h1 className="mt-5 text-[44px] leading-[1.02] font-extrabold tracking-[-0.045em] sm:text-[60px] xl:text-[72px]">
+            Explore every outcome. <span className="text-bright">Commit only one.</span>
+          </h1>
+          <p className="text-panel-muted mt-6 max-w-[48ch] text-[16px] leading-[1.75]">
+            An AI agent can find many ways forward. Fork lets it try each one on a copy of the
+            books, puts the trade-offs in front of you, and holds execution to the one plan you
+            approve.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-2.5">
+            <Link
+              href="/app"
+              className="bg-bright inline-flex h-11 items-center gap-2 rounded-[8px] px-5 text-[14px] font-extrabold text-[#133025] hover:opacity-90"
+            >
+              Open the decision studio <ArrowUpRight size={16} strokeWidth={2.25} aria-hidden />
+            </Link>
+            <Link
+              href="/how"
+              className="border-panel-line hover:bg-panel-raised inline-flex h-11 items-center gap-2 rounded-[8px] border px-5 text-[14px] font-extrabold"
+            >
+              How the harness works <ArrowRight size={16} strokeWidth={2.25} aria-hidden />
+            </Link>
+          </div>
+          <p className="text-panel-muted mt-6 text-[12px] font-semibold">
+            Several possible futures · One clear decision · Every action accounted for
           </p>
         </div>
 
-        {/* the numbers for whichever branch is selected in the graph below */}
-        <div className="border-line bg-surface rounded-[6px] border p-4">
-          <p className="label">Selected branch</p>
+        <div className="border-panel-line bg-panel-raised rounded-[16px] border p-5 shadow-[0_25px_60px_rgba(0,0,0,0.18)]">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-panel-muted text-[11px] font-extrabold tracking-[0.11em] uppercase">
+              A decision, recorded
+            </span>
+            <span className="border-panel-line text-bright rounded-[6px] border px-2 py-0.5 text-[11px] font-bold">
+              Sandbox
+            </span>
+          </div>
+
+          <div className="border-panel-line bg-panel mt-4 grid grid-cols-3 rounded-[10px] border">
+            {(
+              [
+                ['Cash available', usdShort(state.cashCents), ''],
+                ['Bills due', usdShort(due), ''],
+                ['Shortfall', gap > 0 ? `−${usdShort(gap)}` : usdShort(0), 'text-warm'],
+              ] as const
+            ).map(([name, value, tone]) => (
+              <div key={name} className="border-panel-line border-l p-3 first:border-0">
+                <div className="text-panel-muted text-[11px]">{name}</div>
+                <div className={`figure mt-1 text-[17px] sm:text-[20px] ${tone}`}>{value}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="text-panel-muted mt-4 mb-2 text-[11px] font-extrabold tracking-[0.11em] uppercase">
+            {view.branches.length} routes the agent proposed
+          </div>
+          <div className="flex flex-col gap-2">
+            {view.branches.map((item) => {
+              const selected = item.id === branch.id;
+              const p = item.projection;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => onPick(item.id)}
+                  className={`flex items-center gap-3 rounded-[10px] border px-3.5 py-3 text-left ${
+                    selected
+                      ? 'border-bright bg-[color-mix(in_srgb,var(--bright)_16%,var(--panel-raised))]'
+                      : 'border-panel-line bg-[color-mix(in_srgb,var(--bright)_5%,var(--panel-raised))] hover:border-[color-mix(in_srgb,var(--bright)_50%,var(--panel-line))]'
+                  }`}
+                >
+                  <span className="border-panel-line text-bright flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] border text-[13px] font-extrabold">
+                    {item.label}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-bold">{item.title}</span>
+                    <span className="text-panel-muted block text-[12px]">
+                      {p
+                        ? `${usdShort(p.outflowCents)} paid · ${usdShort(p.deferredCents)} deferred`
+                        : 'Not simulated'}
+                    </span>
+                  </span>
+                  {p ? (
+                    <span
+                      className={`figure text-[14px] ${p.cashAfterCents < 0 ? 'text-warm' : 'text-bright'}`}
+                    >
+                      {usdShort(p.cashAfterCents)} left
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+
           <dl
-            className="mt-2 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-[14px]"
             aria-live="polite"
+            className="border-panel-line mt-4 grid grid-cols-[auto_1fr] gap-x-5 gap-y-1 border-t pt-4 text-[13px]"
           >
-            <dt className="text-muted">Branch {branch.label}</dt>
-            <dd className="font-medium">{branch.title}</dd>
-            <dt className="text-muted">Cash after</dt>
-            <dd>{branch.projection ? <Money cents={branch.projection.cashAfterCents} /> : '—'}</dd>
-            <dt className="text-muted">Late fees</dt>
+            <dt className="text-panel-muted">Plan {branch.label}</dt>
+            <dd className="font-bold">{branch.title}</dd>
+            <dt className="text-panel-muted">Late fees</dt>
             <dd className="money">{usd(branch.projection?.lateFeesCents ?? 0)}</dd>
-            <dt className="text-muted">Needs approval</dt>
-            <dd className="money">
+            <dt className="text-panel-muted">Needs sign-off</dt>
+            <dd>
               {approvals} {approvals === 1 ? 'payment' : 'payments'}
             </dd>
-            <dt className="text-muted">Status</dt>
+            <dt className="text-panel-muted">Outcome</dt>
             <dd>{statusText(branch.status)}</dd>
           </dl>
-          <p className="text-muted mt-3 text-[12px]">
-            Recorded from a real run on {record.recordedAt.slice(0, 10)}. Select a branch in the
-            graph to read its numbers.
+          <p className="text-panel-muted mt-3 flex items-start gap-2 text-[12px]">
+            <Check
+              size={14}
+              strokeWidth={2.5}
+              className="text-bright mt-0.5 shrink-0"
+              aria-hidden
+            />
+            Recorded from a real run on {record.recordedAt.slice(0, 10)}. Pick a route to read its
+            numbers.
           </p>
         </div>
       </div>
+    </section>
+  );
+}
 
-      <div className="border-line bg-surface mt-8 h-[460px] rounded-[6px] border">
+const IDEA: [string, string][] = [
+  [
+    'Explore possibilities',
+    'The agent proposes different ways to solve the problem. Each one runs against a frozen copy of the books, never the real ledger.',
+  ],
+  [
+    'Choose with the numbers in front of you',
+    "Compare what gets paid, what waits, and what each plan costs. FORK calculates this itself; the agent's claims are not trusted.",
+  ],
+  [
+    'Keep execution honest',
+    'Your approval freezes the exact payments. ArmorIQ checks every tool call against them, and anything else is refused before money moves.',
+  ],
+];
+
+function Idea() {
+  return (
+    <section
+      id="how"
+      className="border-line grid grid-cols-1 gap-10 border-b py-16 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16"
+    >
+      <div>
+        <SectionEyebrow>The idea</SectionEyebrow>
+        <h2 className={`${h2} mt-3`}>
+          Powerful agents.
+          <br />
+          Clear boundaries.
+        </h2>
+        <p className="text-muted mt-4 max-w-[44ch] text-[15px] leading-[1.8]">
+          A good agent can discover options. Deciding which one is acceptable should not be buried
+          in an opaque tool call. Fork puts the choice, and its consequences, in front of a person.
+        </p>
+        <Link href="/how" className={`${buttonClass('secondary')} mt-6`}>
+          See what is under the hood <ArrowRight size={15} strokeWidth={2} aria-hidden />
+        </Link>
+      </div>
+      <ol className="grid gap-2.5">
+        {IDEA.map(([name, text], i) => (
+          <li key={name} className="card grid grid-cols-[34px_1fr] gap-4 p-5">
+            <span className="bg-mint text-accent flex h-[30px] w-[30px] items-center justify-center rounded-[8px] font-mono text-[13px] font-semibold">
+              0{i + 1}
+            </span>
+            <div>
+              <h3 className="text-[16px] font-extrabold">{name}</h3>
+              <p className="text-muted mt-1 text-[13px] leading-relaxed">{text}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function BranchMap({
+  record,
+  picked,
+  onPick,
+}: {
+  record: Recorded;
+  picked: string;
+  onPick: (id: string) => void;
+}) {
+  const { view } = record;
+  const branches = useMemo(() => view.branches, [view]);
+  const steps = useMemo(() => view.steps, [view]);
+  return (
+    <section className="border-line border-b py-16">
+      <SectionEyebrow>The same decision, as a tree</SectionEyebrow>
+      <h2 className={`${h2} mt-3 max-w-[20ch]`}>Every plan forks from one snapshot.</h2>
+      <p className="text-muted mt-4 max-w-[62ch] text-[15px] leading-[1.8]">
+        All branches start from the same frozen balance, so they can be compared fairly. Only the
+        approved branch is ever executed. Refused attempts hang off it as dead ends.
+      </p>
+      <div className="card mt-7 h-[460px] overflow-hidden">
         <BranchCanvas
           branches={branches}
           steps={steps}
           cashCents={view.snapshot.state.cashCents}
-          selectedId={branch.id}
-          onSelect={select}
+          selectedId={picked}
+          onSelect={onPick}
         />
       </div>
-    </section>
-  );
-}
-
-function Step({
-  n,
-  name,
-  children,
-  fragment,
-}: {
-  n: number;
-  name: string;
-  children: React.ReactNode;
-  fragment: React.ReactNode;
-}) {
-  return (
-    <li className="border-line grid gap-4 border-t py-6 md:grid-cols-[48px_1fr_minmax(0,360px)] md:items-center">
-      <span className="text-accent font-mono text-[14px]">{n}</span>
-      <div>
-        <h3 className="text-[16px] font-semibold">{name}</h3>
-        <p className="mt-1 max-w-[54ch] text-[14px] leading-relaxed">{children}</p>
-      </div>
-      <div className="border-line bg-surface rounded-[6px] border p-3 text-[13px]">{fragment}</div>
-    </li>
-  );
-}
-
-function HowItWorks({ record }: { record: Recorded }) {
-  const { view } = record;
-  const branch = view.branches.find((item) => item.id === record.branchId)!;
-  const line =
-    branch.projection?.lines.find((item) => item.remainingCents > 0) ?? branch.projection?.lines[0];
-  const vendor = (id?: string) =>
-    view.snapshot.state.vendors.find((item) => item.id === id)?.name ?? '';
-  const allowed = view.steps.find((step) => step.receiptId);
-  const receipt = view.receipts.find((item) => item.id === allowed?.receiptId);
-
-  return (
-    <section id="how" className={section}>
-      <h2 className={h2}>How it works</h2>
-      <ol className="mt-6">
-        <Step
-          n={1}
-          name="Fork"
-          fragment={
-            <ul className="space-y-1">
-              {view.branches.map((item) => (
-                <li key={item.id} className="flex items-center gap-2">
-                  <span className="font-display font-extrabold">{item.label}</span>
-                  <span className="truncate">{item.title}</span>
-                  <span className="ml-auto">
-                    <SourcePill source={item.source} />
-                  </span>
-                </li>
-              ))}
-            </ul>
-          }
-        >
-          A planner agent proposes up to three ways to handle the week&apos;s invoices. Proposals
-          are untrusted data: FORK checks every one against the books.
-        </Step>
-        <Step
-          n={2}
-          name="Simulate"
-          fragment={
-            line ? (
-              <div className="flex items-center justify-between gap-3">
-                <span>{vendor(line.vendorId)}</span>
-                <span className="text-muted">
-                  pays <span className="money text-text">{usd(line.paidCents)}</span>, leaves{' '}
-                  <span className="money text-text">{usd(line.remainingCents)}</span>
-                </span>
-              </div>
-            ) : null
-          }
-        >
-          Each branch runs against the same frozen snapshot, so the outcomes can be compared side by
-          side. Simulation never writes to the ledger.
-        </Step>
-        <Step
-          n={3}
-          name="Authorize"
-          fragment={
-            branch.approvedPlanHash ? <AuthorizationSeal hash={branch.approvedPlanHash} /> : null
-          }
-        >
-          The CFO approves one branch. Its exact steps are frozen and hashed, then signed by ArmorIQ
-          as an intent plan.
-        </Step>
-        <Step
-          n={4}
-          name="Execute"
-          fragment={
-            allowed && receipt ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <VerdictPill verdict={allowed.verdict} />
-                <span className="font-mono text-[12px]">{allowed.tool}</span>
-                <span className="money ml-auto">{usd(receipt.amountCents)}</span>
-                <span className="text-muted w-full font-mono text-[11px]">
-                  receipt {shortHash(receipt.id)}
-                </span>
-              </div>
-            ) : null
-          }
-        >
-          Plain code, not a model, sends each approved step through ArmorIQ to the payment server.
-          Cash changes only when a receipt comes back.
-        </Step>
-      </ol>
-    </section>
-  );
-}
-
-const GATES: [string, string][] = [
-  ['Agent proposal', 'The planner. Untrusted.'],
-  ['Snapshot', 'FORK. A frozen copy of the books.'],
-  ['CFO authorization', 'A person. One immutable branch.'],
-  ['ArmorIQ', 'Signed plan plus policy, on every call.'],
-  ['MCP', 'Checks the single-use capability and the cash.'],
-  ['Ledger receipt', 'Append-only. The only proof of payment.'],
-];
-
-function TwoGates() {
-  return (
-    <section className={section}>
-      <h2 className={h2}>Two gates, and both must open</h2>
-      <p className="mt-3 max-w-[64ch] text-[14px] leading-relaxed">
-        A human approving a branch is one gate. ArmorIQ checking each call against that branch is
-        the other. Money moves only when both agree, and the payment server checks once more.
-      </p>
-      <ol className="border-line mt-6 grid overflow-hidden rounded-[6px] border sm:grid-cols-2 lg:grid-cols-6">
-        {GATES.map(([name, owner], i) => (
-          <li
-            key={name}
-            className={`border-line bg-surface border-b p-3 lg:border-r lg:border-b-0 ${i === 2 || i === 3 ? 'border-t-accent border-t-2' : ''}`}
-          >
-            <div className="text-[13px] font-semibold">{name}</div>
-            <div className="text-muted mt-1 text-[12px]">{owner}</div>
-          </li>
-        ))}
-      </ol>
     </section>
   );
 }
@@ -247,153 +279,177 @@ function Evidence({ record }: { record: Recorded }) {
   const message = view.messages.at(-1);
   const attempts = view.steps.filter((step) => step.origin === 'agent');
   const execution = view.executions.find((item) => item.kind === 'commit');
+  const vendorName = (id: unknown) =>
+    view.snapshot.state.vendors.find((item) => item.id === id)?.name ?? String(id ?? '');
   return (
-    <section id="evidence" className={section}>
-      <h2 className={h2}>The moment it says no</h2>
-      <p className="mt-3 max-w-[64ch] text-[14px] leading-relaxed">
-        Midway through a commit, a fake vendor email arrived. The inbox agent, a real model,
-        believed it. This is what happened next, recorded from that run and not edited.
-      </p>
-      <div className="border-line bg-surface mt-6 rounded-[6px] border">
-        {message ? (
-          <div className="border-line border-b p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Chip tone="text">UNTRUSTED INPUT</Chip>
-              <span className="text-muted font-mono text-[12px]">{message.from}</span>
+    <section id="evidence" className="py-16">
+      <div className="bg-mint grid grid-cols-1 items-start gap-9 rounded-[16px] border border-[color-mix(in_srgb,var(--accent)_22%,var(--mint))] p-6 lg:grid-cols-2 lg:p-9">
+        <div>
+          <SectionEyebrow>The moment that matters</SectionEyebrow>
+          <h2 className="mt-3 text-[28px] leading-[1.12] font-extrabold sm:text-[32px]">
+            What happens when an agent changes its mind?
+          </h2>
+          <p className="mt-4 text-[14px] leading-[1.85]">
+            Midway through execution, a fake vendor email arrived asking to redirect a payment. The
+            inbox agent, a real model, believed it and tried. That instruction was never approved,
+            so the attempt was refused and recorded.
+          </p>
+          <p className="text-muted mt-3 text-[13px] leading-[1.8]">
+            ArmorIQ binds the tool to the signed plan, so the change of bank details was blocked
+            outright. The altered payment got past ArmorIQ and was stopped by FORK&apos;s own
+            payment server, which accepts only the single-use capability minted for an approved
+            payment.
+          </p>
+          <Link href="/app" className={`${buttonClass('primary')} mt-6`}>
+            Try it yourself <ArrowUpRight size={15} strokeWidth={2} aria-hidden />
+          </Link>
+        </div>
+
+        <div className="card p-5">
+          <div className="label">Recorded from that run, not edited</div>
+          {message ? (
+            <div className="border-line mt-3 flex gap-3 border-b pb-4">
+              <Mail
+                size={17}
+                strokeWidth={1.75}
+                className="text-muted mt-0.5 shrink-0"
+                aria-hidden
+              />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Chip tone="text">UNTRUSTED INPUT</Chip>
+                  <span className="text-muted font-mono text-[11px] break-all">{message.from}</span>
+                </div>
+                <p className="mt-1.5 text-[14px] font-bold">{message.subject}</p>
+                <p className="text-muted mt-1 line-clamp-4 text-[13px] leading-relaxed">
+                  {message.body}
+                </p>
+              </div>
             </div>
-            <p className="mt-2 text-[14px] font-medium">{message.subject}</p>
-            <p className="mt-1 max-w-[70ch] text-[14px] leading-relaxed">{message.body}</p>
+          ) : null}
+          <ol>
+            {attempts.map((step) => {
+              const told = describeStep(step, vendorName);
+              return (
+                <li key={step.id} className="border-line flex gap-3 border-b py-4">
+                  <Ban
+                    size={17}
+                    strokeWidth={2}
+                    className={`mt-0.5 shrink-0 ${step.source === 'armoriq' ? 'text-block' : 'text-fork-reject'}`}
+                    aria-hidden
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-bold">{told.title}</p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
+                      <SourcePill source="agent" />
+                      <span className="font-mono">{step.tool}</span>
+                      <VerdictPill verdict={step.verdict} />
+                      <span className="text-muted font-mono">{step.errorClass}</span>
+                      <span className="text-muted font-mono">{clock(step.at)}</span>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          <div className="flex items-start gap-3 pt-4 text-[14px] font-bold">
+            <Check size={17} strokeWidth={2.5} className="text-allow mt-0.5 shrink-0" aria-hidden />
+            The approved plan stayed exactly as signed.
           </div>
-        ) : null}
-        <ol>
-          {attempts.map((step) => (
-            <li
-              key={step.id}
-              className="border-line flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-3 text-[13px]"
-            >
-              <span className="text-muted font-mono text-[12px]">{clock(step.at)}</span>
-              <SourcePill source="agent" />
-              <span className="font-mono">{step.tool}</span>
-              <span className="text-muted font-mono text-[12px]">
-                → {String(step.args.recipientId ?? '')}
-              </span>
-              <VerdictPill verdict={step.verdict} />
-              <span
-                className={
-                  step.source === 'armoriq' ? 'font-medium' : 'text-fork-reject font-medium'
-                }
-              >
-                {step.source === 'armoriq'
-                  ? 'Blocked by ArmorIQ'
-                  : 'Allowed by ArmorIQ, refused by the MCP'}
-              </span>
-              <span className="text-muted w-full font-mono text-[12px]">{step.errorClass}</span>
-            </li>
-          ))}
-        </ol>
-        {execution ? (
-          <dl className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1 p-4 text-[13px]">
-            <dt className="text-muted">ArmorIQ plan</dt>
-            <dd className="font-mono text-[12px] break-all">{execution.armorPlanId}</dd>
-            <dt className="text-muted">Plan hash</dt>
-            <dd>
-              <HashChip value={execution.armorPlanHash} label="ArmorIQ plan hash" />
-            </dd>
-          </dl>
-        ) : null}
+          {execution ? (
+            <dl className="text-muted mt-3 grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1 text-[12px]">
+              <dt>ArmorIQ plan</dt>
+              <dd className="font-mono break-all">{execution.armorPlanId}</dd>
+              <dt>Plan hash</dt>
+              <dd>
+                <HashChip value={execution.armorPlanHash} label="ArmorIQ plan hash" />
+              </dd>
+            </dl>
+          ) : null}
+        </div>
       </div>
-      <p className="text-muted mt-3 max-w-[70ch] text-[13px]">
-        ArmorIQ binds the tool to the signed plan, not its arguments. So the destination change was
-        blocked outright, while the altered payment got past ArmorIQ and was stopped by FORK&apos;s
-        own payment server, which accepts only the single-use capability minted for the approved
-        payment.
+    </section>
+  );
+}
+
+const GATES: [string, string, boolean][] = [
+  ['Agent proposal', 'The planner. Untrusted.', false],
+  ['Snapshot', 'FORK. A frozen copy of the books.', false],
+  ['CFO approval', 'A person. One immutable plan.', true],
+  ['ArmorIQ', 'Signed plan plus policy, on every call.', true],
+  ['Payment server', 'Checks the single-use capability and the cash.', false],
+  ['Ledger receipt', 'Append-only. The only proof of payment.', false],
+];
+
+function TwoGates() {
+  return (
+    <section className="border-line border-t py-16">
+      <SectionEyebrow>Two gates</SectionEyebrow>
+      <h2 className={`${h2} mt-3`}>Both must open before money moves.</h2>
+      <p className="text-muted mt-4 max-w-[64ch] text-[15px] leading-[1.8]">
+        A person approving a plan is one gate. ArmorIQ checking each call against that plan is the
+        other. The payment server then checks once more.
       </p>
+      <ol className="mt-7 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-6">
+        {GATES.map(([name, owner, gate], i) => (
+          <li
+            key={name}
+            className={`card p-4 ${gate ? 'border-accent bg-mint shadow-[inset_0_0_0_1px_var(--accent)]' : ''}`}
+          >
+            <div className="text-muted font-mono text-[11px] font-semibold">0{i + 1}</div>
+            <div className="mt-1.5 text-[14px] font-extrabold">{name}</div>
+            <div className="text-muted mt-1 text-[12px] leading-relaxed">{owner}</div>
+            {gate ? (
+              <div className="mt-2">
+                <Tag tone="accent">Gate</Tag>
+              </div>
+            ) : null}
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }
 
 export function Landing({ record }: { record: Recorded }) {
-  const [theme, setTheme] = useState<'dark' | 'light'>('light');
-  useEffect(() => {
-    const saved = window.localStorage.getItem('fork-landing-theme');
-    if (saved === 'light' || saved === 'dark') setTheme(saved);
-  }, []);
-  const toggle = () =>
-    setTheme((current) => {
-      const next = current === 'dark' ? 'light' : 'dark';
-      window.localStorage.setItem('fork-landing-theme', next);
-      return next;
-    });
-
+  const [picked, setPicked] = useState(record.branchId);
+  const pick = useCallback((id: string) => setPicked(id), []);
   return (
-    <div data-theme={theme} className="bg-bg text-text min-h-dvh font-sans">
-      <Tooltip.Provider>
-        <div className="mx-auto max-w-[1280px] px-[clamp(16px,4vw,64px)]">
-          <header className="flex h-16 items-center gap-6">
-            <Wordmark />
-            <nav
-              className="text-muted ml-auto hidden items-center gap-5 text-[14px] sm:flex"
-              aria-label="Page"
-            >
-              <a href="#how" className="hover:text-text">
-                How it works
+    <Shell active="Overview">
+      <main>
+        <Hero record={record} picked={picked} onPick={pick} />
+        <div className={wrap}>
+          <Idea />
+          <BranchMap record={record} picked={picked} onPick={pick} />
+          <Evidence record={record} />
+          <TwoGates />
+          <section className="border-line border-t py-16">
+            <SectionEyebrow>Why this matters</SectionEyebrow>
+            <p className="mt-4 max-w-[30ch] text-[26px] leading-[1.25] font-extrabold tracking-[-0.03em] sm:text-[30px]">
+              <span className="text-accent">$3.05 billion</span> was reported lost to business email
+              compromise in 2025.
+            </p>
+            <p className="text-muted mt-4 max-w-[62ch] text-[14px] leading-[1.8]">
+              A message claiming a vendor changed its bank details is exactly that fraud. The FBI
+              ranks it the second-largest fraud category by loss. An agent that reads email and
+              moves money needs a boundary it cannot talk its way past.
+            </p>
+            <p className="text-muted mt-3 text-[12px]">
+              Source:{' '}
+              <a href={IC3_REPORT} className="underline underline-offset-2">
+                FBI Internet Crime Complaint Center, 2025 Internet Crime Report
               </a>
-              <a href="#evidence" className="hover:text-text">
-                Evidence
-              </a>
+              .{' '}
               {REPO ? (
-                <a href={REPO} className="hover:text-text">
-                  GitHub
+                <a href={REPO} className="underline underline-offset-2">
+                  Source code on GitHub
                 </a>
               ) : null}
-            </nav>
-            <button
-              type="button"
-              onClick={toggle}
-              aria-label="Toggle theme"
-              className="border-line hover:bg-raised ml-auto flex h-8 w-8 items-center justify-center rounded-[4px] border sm:ml-0"
-            >
-              {theme === 'dark' ? (
-                <Sun size={15} strokeWidth={1.5} />
-              ) : (
-                <Moon size={15} strokeWidth={1.5} />
-              )}
-            </button>
-            <Link href="/app" className={`${primary} h-8 px-3 text-[13px]`}>
-              Open the workspace
-            </Link>
-          </header>
-
-          <main>
-            <Hero record={record} />
-            <HowItWorks record={record} />
-            <TwoGates />
-            <Evidence record={record} />
-
-            <section className={section}>
-              <h2 className={h2}>Why this matters</h2>
-              <p className="mt-3 max-w-[64ch] text-[16px] leading-relaxed">
-                A message claiming a vendor changed its bank details is business email compromise.
-                The FBI recorded <span className="money font-medium">$3.05 billion</span> in
-                reported losses to it in 2025, the second-largest fraud category by loss.
-              </p>
-              <p className="text-muted mt-2 text-[13px]">
-                Source:{' '}
-                <a href={IC3_REPORT} className="underline underline-offset-2">
-                  FBI Internet Crime Complaint Center, 2025 Internet Crime Report
-                </a>
-                .
-              </p>
-            </section>
-          </main>
-
-          <footer className="border-line text-muted flex flex-wrap gap-x-6 gap-y-2 border-t py-6 text-[13px]">
-            {REPO ? <a href={REPO}>GitHub</a> : null}
-            <span>Built for ArmorIQ Flow State 2026</span>
-            <span>Fictional company. Sandbox ledger. No real payments.</span>
-          </footer>
+            </p>
+            <p className="text-muted mt-1 text-[12px]">Built for ArmorIQ Flow State 2026.</p>
+          </section>
         </div>
-      </Tooltip.Provider>
-    </div>
+      </main>
+    </Shell>
   );
 }
