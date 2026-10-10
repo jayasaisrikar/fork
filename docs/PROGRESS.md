@@ -55,3 +55,36 @@ Chosen but not installed until the phase that uses them: `better-sqlite3` 13.0.3
 - **No `eslint-config-next`.** Root ESLint uses `@eslint/js` + `typescript-eslint` only, to keep one
   config for the whole repo.
 - `FORK_BUILD_SPEC.md` is not in the repo yet (it was pasted into the session, not saved as a file).
+
+## Phase 1 — Spike (in progress, 2026-10-10)
+
+**Built**
+
+- `packages/mcp-http`: one helper that serves an MCP server over stateless Streamable HTTP at
+  `/mcp` behind the `X-Fork-Secret` check. It refuses to start without `FORK_MCP_SECRET`.
+- `mcp/treasury-mcp` (spike surface): `get_balance`, `list_vendors` on fixed data.
+- `mcp/payments-mcp` (spike surface): `pay_vendor` and `send_wire`, both stubs that move no money.
+- `scripts/spike/run.ts`: S0–S8 from the spec plus S9 (same action invoked on the wrong MCP).
+  Run with `pnpm spike` or `pnpm spike S1 S2`. Each run appends a row to `docs/FINDINGS.md`.
+- `docs/FINDINGS.md` Part A: seventeen findings from reading the installed SDK.
+
+**Checked locally**
+
+- [x] `pnpm build`, `pnpm lint`, `pnpm format:check`.
+- [x] Both MCP servers: 401 without or with a wrong secret, `tools/list` and `tools/call` work with
+      the right one, invalid input is rejected by the schema.
+
+**Not done**
+
+- [ ] S0–S9 have not run. They need the HUMAN TASKs: API key, agent, both MCPs registered over
+      HTTPS, policy pasted, Amount Field configured.
+- [ ] Phase 1 DoD (S0, S1, S2, S4, S5 pass) is therefore open.
+
+**Changes from the spec, and why**
+
+- **Extra package `packages/mcp-http`.** The secret check is security code; one copy, not two.
+- **One spike runner instead of one file per spike.** Same coverage, shared setup.
+- **S9 added.** The SDK matches plan steps by action name only (FINDINGS A7), so the attack
+  replay's "tool on the wrong MCP" case needs its own live answer.
+- **Spikes call `invokeWithPolicy` everywhere**, not `invoke`, because only `invokeWithPolicy`
+  turns policy responses into `PolicyBlockedException` / `PolicyHoldException` (FINDINGS A15).

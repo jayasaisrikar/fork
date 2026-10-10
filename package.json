@@ -7,7 +7,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "build": "pnpm -r build",
+    "build": "pnpm -r build && tsc --noEmit",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -17,9 +17,10 @@
     "dev:engine": "pnpm --filter @fork/engine dev",
     "dev:treasury": "pnpm --filter @fork/treasury-mcp dev",
     "dev:payments": "pnpm --filter @fork/payments-mcp dev",
-    "seed": "tsx scripts/seed.ts"
+    "spike": "tsx --env-file-if-exists=.env scripts/spike/run.ts"
   },
   "devDependencies": {
+    "@armoriq/sdk": "0.6.10",
     "@eslint/js": "10.0.1",
     "@types/node": "26.6.3",
     "eslint": "10.11.0",
