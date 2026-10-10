@@ -129,3 +129,19 @@ verified, metadata: { hasToolError } }`. No trace ID. The token carries `tokenId
 - **B19. Agent registration per the docs** (`/platform/agents/add-agent`) wants the agent's base URL
   and detects its framework as A2A or MCP. The live wizard differs from the docs and has no URL
   field in the "Attached to MCP server" flow, which is why that flow cannot finish.
+- **B20. S4, the hold, works end to end, with two workarounds.** Policy rule `execute_large_payment:
+hold` makes the proxy return a hold (`held for approval by member policy rule`).
+  1. The SDK's built-in wait (`waitForApproval`) fails with "amount must be at least 0.01": it reads
+     the amount from the platform's tool metadata (`isFinancial`, `amountFields`), and we found no
+     place to set that. The adapter now calls `createDelegationRequest` itself with the real amount,
+     polls `getDelegationStatus`, re-invokes with `_delegation_id`, then `markDelegationExecuted`.
+     These are all public SDK methods, the same ones the SDK's own wait uses.
+  2. ArmorIQ refuses self-approval ("You cannot approve a plan whose delegation you requested"). The
+     request is filed as `fork-agent@kettleandpine.test` (`ARMORIQ_REQUESTER_EMAIL`), which the
+     backend accepts without it being a member, and the CFO approves under Intent, Held Actions.
+- **B21. First fully committed branch through live ArmorIQ (2026-10-10).** Branch B, plan
+  `68985108-689f-472f-aef7-d70ed9344679`: nine calls allowed, six receipts, Juniper Payroll $12,000
+  held (delegation `320e1220-6cf3-4477-9adb-b0380cb40e10`) and paid only after approval on the
+  platform. Ledger cash $50,000 to exactly $10,000, receipts total $40,000, postings sum to zero.
+- **B22. Pasting YAML into the policy editor works**, despite its "preview only" header. The
+  editor's own tool probe never reached our server.

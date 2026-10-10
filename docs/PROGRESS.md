@@ -34,6 +34,19 @@ Next risk: nobody has looked at the platform's Activity/Observability view yet t
 ```
 
 ```
+PHASE 2 LIVE HAPPY PATH — 2026-10-10 23:58 IST
+Built: hold handling in the adapter (own delegation request with the real amount, agent identity
+  as requester). Policy v0.2.0 with all eight tools pasted on the platform.
+Tests: 128 passed / 0 failed / 0 blocked.
+ArmorIQ live: branch B COMMITTED via the API. plan 68985108-689f-472f-aef7-d70ed9344679, six
+  receipts, hold on execute_large_payment approved by the operator on the platform (delegation
+  320e1220-6cf3-4477-9adb-b0380cb40e10). Cash $50,000 -> $10,000, ledger reconciled.
+Changed from spec: FINDINGS B20 (hold workarounds).
+UI quality check: n/a (no UI this phase)
+Next risk: Phase 3 needs LLM_* env values. The live suite (11.5) is still a script, not a test.
+```
+
+```
 PHASE 2 COMPLETE — 2026-10-10 23:38 IST
 Built: packages/harness (branch and step lifecycles with guards, approved plan hash, commit
   loop). packages/armor-adapter (toVerdict, gateway: sign, dispatch, close, health). Treasury
