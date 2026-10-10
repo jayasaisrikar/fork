@@ -1,7 +1,8 @@
 import type { BranchStatus } from './lifecycle';
 
 export type StepResult =
-  | { status: 'EXECUTED' }
+  // halt: the step ran, but something happened that means the branch must not go on
+  | { status: 'EXECUTED'; halt?: boolean }
   // refused or failed: the branch stops here
   | { status: 'DENIED' | 'FAILED' }
   // a hold nobody approved: skip this step, carry on with the rest
@@ -44,6 +45,7 @@ export async function runSteps<Step>(ports: RunnerPorts<Step>): Promise<RunSumma
     const result = await ports.execute(step);
     if (result.status === 'EXECUTED' && ports.isWrite(step)) executedWrites += 1;
     if (result.status === 'DENIED' || result.status === 'FAILED') stop = 'stopped';
+    if (result.status === 'EXECUTED' && result.halt) stop = 'stopped';
   }
 
   const totalWrites = ports.steps.filter((step) => ports.isWrite(step)).length;

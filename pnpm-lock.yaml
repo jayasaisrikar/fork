@@ -29,6 +29,9 @@ importers:
       '@types/node':
         specifier: 26.6.3
         version: 26.6.3
+      ai:
+        specifier: 7.0.116
+        version: 7.0.116(zod@4.6.5)
       drizzle-orm:
         specifier: 0.45.3
         version: 0.45.3(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.3)

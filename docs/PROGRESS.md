@@ -34,6 +34,26 @@ Next risk: nobody has looked at the platform's Activity/Observability view yet t
 ```
 
 ```
+PHASE 3 BUILT, EXIT GATE OPEN — 2026-10-11 00:43 IST
+Built: apps/engine/src/agents: planner (generateObject, zod, up to three attempts with the
+  harness's rejection fed back), inbox agent (generateText with two guarded tools), model
+  setup for any OpenAI-compatible endpoint. Engine: propose, hostile message injection,
+  inbox handling inside the commit runner (agent attempts are real ArmorIQ dispatches recorded
+  with origin agent, and any attempt halts the branch), replan into a child branch on a fresh
+  snapshot. Routes: /api/runs/:id/propose, /api/runs/:id/inject, /api/branches/:id/replan.
+Tests: 139 passed / 0 failed / 1 blocked. The agent tests drive the real planner and inbox code
+  with a scripted stand-in model (ai/test). Blocked: branches from a real model run.
+ArmorIQ live: nothing new this phase.
+Changed from spec: POST /api/runs only creates the run; proposing is its own retryable call.
+  The inbox agent's execute_payment has no capability to send, so the MCP refuses it at the
+  schema. Replan asks for one branch and labels it with a prime (B′).
+UI quality check: n/a (no UI this phase)
+Next risk: no usable model yet. The model the operator chose is restricted to OpenCode itself
+  (FINDINGS C1). Until a provider is set, the exit gate "branches come from a real model run"
+  is not met, and how often a real model falls for the hostile email is unknown.
+```
+
+```
 PHASE 2 LIVE HAPPY PATH — 2026-10-10 23:58 IST
 Built: hold handling in the adapter (own delegation request with the real amount, agent identity
   as requester). Policy v0.2.0 with all eight tools pasted on the platform.

@@ -145,6 +145,22 @@ export function createApp(deps: AppDeps) {
   );
   app.get('/api/runs/:id', (c) => c.json(engine.getRun(runId(c.req.param('id')))));
 
+  app.post('/api/runs/:id/propose', async (c) =>
+    c.json(
+      { branches: await engine.proposeBranches(runId(c.req.param('id')), c.get('session').email) },
+      201,
+    ),
+  );
+  app.post('/api/runs/:id/inject', (c) =>
+    c.json(
+      { message: engine.injectHostileMessage(runId(c.req.param('id')), c.get('session').email) },
+      201,
+    ),
+  );
+  app.post('/api/branches/:id/replan', async (c) =>
+    c.json({ branches: await engine.replan(c.req.param('id'), c.get('session').email) }, 201),
+  );
+
   app.post('/api/branches/:id/simulate', (c) =>
     c.json({ branch: engine.simulateBranch(c.req.param('id')) }),
   );

@@ -28,6 +28,7 @@
     "@fork/harness": "workspace:*",
     "@fork/shared": "workspace:*",
     "@types/node": "26.6.3",
+    "ai": "7.0.116",
     "drizzle-orm": "0.45.3",
     "eslint": "10.11.0",
     "prettier": "3.9.9",

@@ -1,7 +1,7 @@
 import { createApp as createMcpApp } from '../../apps/finance-mcp/src/http';
 import { registerTools } from '../../apps/finance-mcp/src/tools';
 import { createApp } from '../../apps/engine/src/app';
-import { createEngine, type Branch } from '../../apps/engine/src/service';
+import { createEngine, type Branch, type EngineDeps } from '../../apps/engine/src/service';
 import { fakeGateway, type FakeOptions } from '../../packages/armor-adapter/test/fake-gateway';
 import { openDb, seedScenario } from '@fork/db';
 import { liquidityShortfall, referenceBranches } from '@fork/domain-finance';
@@ -21,7 +21,11 @@ const DEFAULT_POLICY: Policy = {
 };
 
 // a whole FORK in memory: ledger, MCP, engine and API, with a stand-in for ArmorIQ
-export function world(policy: Policy = {}, configured = true) {
+export function world(
+  policy: Policy = {},
+  configured = true,
+  agents: Pick<EngineDeps, 'planner' | 'inbox'> = {},
+) {
   const db = openDb(':memory:');
   seedScenario(db);
   const mcp = createMcpApp({
@@ -38,6 +42,8 @@ export function world(policy: Policy = {}, configured = true) {
       gateway,
       capabilitySecret: SECRET,
       gatewayMissingReason: 'ArmorIQ is not configured. Nothing can be committed.',
+      planner: agents.planner,
+      inbox: agents.inbox,
     });
 
   const gateway = gatewayFor();

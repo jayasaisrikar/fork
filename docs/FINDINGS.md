@@ -145,3 +145,12 @@ hold` makes the proxy return a hold (`held for approval by member policy rule`).
   platform. Ledger cash $50,000 to exactly $10,000, receipts total $40,000, postings sum to zero.
 - **B22. Pasting YAML into the policy editor works**, despite its "preview only" header. The
   editor's own tool probe never reached our server.
+
+## Part C: language model provider
+
+- **C1. `longcat-2.5-preview-free` through OpenCode cannot be used from FORK (2026-10-11).**
+  `https://opencode.ai/zen/v1` answers 403 `FreeTierError`: "OpenCode's free tier can only be used
+  from within OpenCode". `https://opencode.ai/zen/go/v1` (OpenCode Go) answers 400
+  `MissingSessionID`, and its docs say Go is "designed for OpenCode and other coding agents that
+  produce similar types of requests". FORK is not a coding agent, so we do not send a session header
+  to get around that. Phase 3's real-model run waits for a provider that permits this use.

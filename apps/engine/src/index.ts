@@ -2,6 +2,9 @@ import { serve } from '@hono/node-server';
 import { createGateway } from '@fork/armor-adapter';
 import { openDb, seedScenario } from '@fork/db';
 import { FINANCE_MCP } from '@fork/shared';
+import { handleInbox } from './agents/inbox';
+import { createModels } from './agents/models';
+import { proposeBranches } from './agents/planner';
 import { createApp } from './app';
 import { createEngine } from './service';
 
@@ -29,11 +32,25 @@ const gatewayMissingReason = missing.length
   ? `ArmorIQ is not configured (${missing.join(', ')} missing). Nothing can be committed.`
   : undefined;
 
+// the planner and inbox agent need a model. without one the rest of FORK still works.
+const llmReady =
+  env.LLM_BASE_URL && env.LLM_API_KEY && env.LLM_MODEL_PLANNER && env.LLM_MODEL_INBOX;
+const models = llmReady
+  ? createModels({
+      baseUrl: env.LLM_BASE_URL!,
+      apiKey: env.LLM_API_KEY!,
+      plannerModel: env.LLM_MODEL_PLANNER!,
+      inboxModel: env.LLM_MODEL_INBOX!,
+    })
+  : null;
+
 const engine = createEngine({
   db,
   gateway,
   gatewayMissingReason,
   capabilitySecret,
+  planner: models ? (request, check) => proposeBranches(models.planner, request, check) : undefined,
+  inbox: models ? (messages, actions) => handleInbox(models.inbox, messages, actions) : undefined,
   // how long a held payment waits for a human on the ArmorIQ platform
   holdTimeoutMs: Number(env.HOLD_TIMEOUT_MS ?? 180_000),
 });
