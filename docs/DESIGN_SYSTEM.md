@@ -1,74 +1,94 @@
 # Design system
 
-FORK should read as financial infrastructure with a git client's soul: dense like a terminal,
-disciplined like a bank statement, with the branch graph as the one loud thing.
+FORK should read as a calm financial product that a first-time viewer can follow without a
+walkthrough: one question at the top of the page, one primary action, and the proof one step
+below the plain-language answer.
+
+## Principles
+
+- **Say it plainly first, prove it right underneath.** Every tool call is a sentence ("Paid Harbor
+  Hosting $4,000") with the tool name, verdict and error class on the next line.
+- **One next step.** The studio has a single primary button. Its label says what it does and the
+  line under it says what happens after. A disabled button says why.
+- **Who said no is never blurred.** FORK's rejection, ArmorIQ's block, ArmorIQ's hold and the MCP's
+  refusal are four labels in different colors.
+- **Numbers are FORK's, words are the agent's.** The agent's rationale is always labelled as
+  unverified.
+
+## Pages
+
+| Page            | Route            | Job                                                               |
+| --------------- | ---------------- | ----------------------------------------------------------------- |
+| Home            | `/`              | The idea, the recorded real run, and the moment a call is refused |
+| Decision studio | `/app`           | Explore, approve, execute, review                                 |
+| Decisions       | `/app/runs`      | Every run and its outcome                                         |
+| Receipt         | `/app/runs/[id]` | What was paid, what was stopped, then the full evidence           |
+| Activity        | `/app/audit`     | The append-only event log, filterable and exportable              |
+| How it works    | `/how`           | The harness, the four kinds of refusal, the adapter contract      |
+
+The studio is one column of cards beside a sticky selected-plan panel: situation bar, plan cards
+(or the branch map), comparison, bills, activity, safeguard tests. On a phone the panel moves under
+the plan cards and the primary button sits in a bar at the bottom.
 
 ## Color
 
 Defined as CSS variables in `apps/web/app/globals.css`. Components use the tokens, never a hex.
 
-| Token           | Dark      | Light     | Use                                      |
+| Token           | Light     | Dark      | Use                                      |
 | --------------- | --------- | --------- | ---------------------------------------- |
-| `--bg`          | `#0B0E0D` | `#F4F5F3` | Page                                     |
-| `--surface`     | `#121614` | `#FFFFFF` | Panels                                   |
-| `--raised`      | `#191E1C` | `#ECEEEB` | Hover, selected row                      |
-| `--line`        | `#252C29` | `#D8DCD8` | Borders, grid                            |
-| `--text`        | `#E4EAE7` | `#121614` | Body                                     |
-| `--muted`       | `#8A9590` | `#58625D` | Labels                                   |
-| `--accent`      | `#3BBFAE` | `#0E6E64` | Selection, the authorization seal, focus |
-| `--sim`         | `#8FA3C8` | `#46598A` | Simulated, uncommitted edges             |
-| `--allow`       | `#46C487` | `#167A47` | ALLOW                                    |
-| `--hold`        | `#E3A93A` | `#9A6200` | HOLD                                     |
-| `--block`       | `#EF6A55` | `#B8301C` | BLOCK, and negative money                |
-| `--fork-reject` | `#C9A0DC` | `#6B3F86` | FORK's and the MCP's own refusals        |
-| `--unknown`     | `#8A9590` | `#58625D` | Errors                                   |
+| `--bg`          | `#F5F7F4` | `#111B16` | Page                                     |
+| `--surface`     | `#FFFFFF` | `#1A2921` | Cards                                    |
+| `--raised`      | `#EDF2ED` | `#22342A` | Hover, active nav                        |
+| `--line`        | `#DCE5DE` | `#34473A` | Borders                                  |
+| `--text`        | `#15251E` | `#E5F1E8` | Body                                     |
+| `--muted`       | `#55665C` | `#9CAF9D` | Labels, secondary text                   |
+| `--accent`      | `#276C52` | `#9CE6AD` | Selection, the approval seal, eyebrows   |
+| `--mint`        | `#E8F4E9` | `#234131` | Selected card, soft highlights           |
+| `--ink`         | `#13251D` | `#C5EACB` | Primary button, current step             |
+| `--allow`       | `#17694A` | `#8FE0A6` | ALLOW, paid                              |
+| `--hold`        | `#7D5A12` | `#EAD39B` | HOLD, part paid                          |
+| `--block`       | `#A8442F` | `#FFA89D` | BLOCK, negative money                    |
+| `--fork-reject` | `#6B3F86` | `#D3B0E6` | FORK's and the MCP's own refusals        |
+| `--panel`       | `#12251D` | `#0C1510` | The dark band: hero, situation bar, code |
 
 Rules:
 
-- **Authorize is accent. Allow is green.** A decision is not an enforcement outcome.
-- Verdict colors appear only on verdict pills, graph dead ends, step dots and their rows.
+- **Approve is accent. Allow is green.** A decision is not an enforcement outcome.
 - A refusal that did not come from ArmorIQ never wears an ArmorIQ verdict color.
 - Status always has a text label. Color is never the only signal.
-- No gradients. The "Rejected by FORK" hatch is hard-edged stripes.
+- Tags are a 11% tint of their own color on the surface, so they hold contrast in both themes.
 
-The workspace is dark-first. The landing page, run record and audit page are light-first. Every
-page has both themes.
+Every page is light first, with a dark theme behind the toggle. The choice is remembered.
 
 ## Type
 
-| Role        | Face                           | Where                                      |
-| ----------- | ------------------------------ | ------------------------------------------ |
-| UI and body | IBM Plex Sans 400, 500, 600    | Everything by default                      |
-| Data        | IBM Plex Mono, tabular figures | Money, ids, hashes, timestamps, tool names |
-| Display     | Archivo 800, wide              | Landing headlines and the wordmark         |
+| Role | Face                           | Where                                    |
+| ---- | ------------------------------ | ---------------------------------------- |
+| UI   | Manrope 400 to 800             | Everything; headings are 800, tight      |
+| Data | IBM Plex Mono, tabular figures | Money in tables, ids, hashes, tool names |
 
-Sizes in px: 11, 12, 13, 14, 16, 20, 28, 40, and 64 to 80 for the landing headline.
-Labels are 11px uppercase with 0.08em tracking, in `--muted`.
-Money is mono and right-aligned in tables. Hashes show the first six and last four characters, with
-copy on click and the full value in a tooltip.
+Big figures (cash left, totals) use Manrope 800 with tabular digits. Labels are 11px uppercase with
+0.1em tracking. Hashes show the first six and last four characters, with copy on click and the full
+value in a tooltip.
 
-## Shape and layout
+## Shape and motion
 
-- 4px spacing base. Radius 6px on panels, 4px on inputs and pills, none on table rows.
-- Borders separate things. The only shadows are on popovers and dialogs.
-- Workspace: 56px top bar, no sidebar. Books 288px, inspector 360px, graph in between, rail below.
-- Under 1280px the side panels become tabs. Under 768px a list replaces the graph and the primary
-  action sits in a bar at the bottom.
+- Radius 12px on cards, 8px on buttons and inputs, 6px on tags. Borders separate things; shadows
+  are only on popovers and dialogs.
+- Motion is limited to the seal drawing in, activity rows sliding in, the verdict notifier, and the
+  loading shimmer. Nothing fades text. `prefers-reduced-motion` turns it off.
 
 ## Components
 
-`BranchCard`, `AuthorizationSeal`, `VerdictPill`, `SourcePill`, `HashChip`, `Money`
-(`components/primitives.tsx`, `components/branch-card.tsx`), the graph nodes and edges
-(`components/branch-canvas.tsx`), `ExecutionRail`, `Compare`, `Inspector`, `RunRecord`.
+`Button`, `Tag`, `VerdictPill`, `SourcePill`, `HashChip`, `Card`, `Disclosure`, `Insight`, `Field`
+(`components/primitives.tsx`); `Shell`, `StepBar`, `SignIn` (`components/chrome.tsx`); `PlanCard`,
+`AuthorizationSeal` (`components/branch-card.tsx`); `SituationBar`, `BillsTable`, `Inbox`
+(`components/books.tsx`); `DecisionPanel`, `AuthorizeDialog` (`components/inspector.tsx`);
+`ActivityFeed`, `Safeguards` (`components/rail.tsx`); `Compare`, `BranchCanvas`, `RunRecord`.
 
-Dialogs, tabs, tooltips and popovers are Radix primitives styled to the tokens.
-
-## Motion
-
-Only these, 150 to 400ms, ease-out: the seal drawing in, step dots filling, rail rows sliding in,
-the verdict notifier. Under `prefers-reduced-motion` they become opacity changes or nothing.
+Plain-language wording for steps and statuses lives in one place, `lib/describe.ts`.
 
 ## Copy
 
-Short sentences in a CFO's words: invoice, payment, authorize, defer. Buttons say what they do.
-Errors say what failed and what happens next. A disabled control always says why.
+Short sentences in a CFO's words: plan, bill, approve, execute, defer. Buttons say what they do.
+Errors say what failed and what happens next.

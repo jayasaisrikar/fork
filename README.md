@@ -9,7 +9,7 @@ server, with ArmorIQ checking every call against the signed plan and the company
 
 Built for ArmorIQ's Flow State 2026 hackathon. Fictional company. Sandbox ledger. No real payments.
 
-![The workspace after a commit](docs/screenshots/workspace-committed-dark-1440.png)
+![The decision studio after a plan has been executed](docs/screenshots/studio-completed-light-1440.png)
 
 ## What happens in a run
 
@@ -47,7 +47,7 @@ Browser ──(session cookie + CSRF)──► engine API ──► harness (lif
 
 | Path                      | What it is                                                  |
 | ------------------------- | ----------------------------------------------------------- |
-| `apps/web`                | Next.js: landing, workspace, run record, audit              |
+| `apps/web`                | Next.js: home, decision studio, receipts, activity          |
 | `apps/engine`             | Hono: API, SSE, commit runner, planner and inbox agents     |
 | `apps/finance-mcp`        | `fork-finance-mcp`, the MCP server ArmorIQ calls            |
 | `packages/harness`        | Domain-agnostic lifecycles, approved-plan hash, commit loop |

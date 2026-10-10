@@ -1,6 +1,6 @@
 # The 90-second video
 
-Record at 1440×900, dark workspace, real UI only. No mocked screens.
+Record at 1440×900, light theme, real UI only. No mocked screens.
 
 ## Before recording
 
@@ -19,24 +19,24 @@ Two things to know about timing:
 
 ## Take 1: the happy path with a hold (about 45 seconds)
 
-| Time      | Screen                                                       | Voiceover                                                                             |
-| --------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| 0:00–0:10 | Workspace: $50,000 cash, $68,000 due. Click Propose branches | "Kettle & Pine can't pay every bill this week. The agent forks the decision."         |
-| 0:10–0:22 | Branches appear. Simulate. Open Compare, Cash path           | "Every branch is simulated on a copy of the books before anything moves."             |
-| 0:22–0:32 | Select a branch, Authorize, confirm. The seal draws          | "The CFO authorizes one branch. Its exact steps become a signed ArmorIQ intent plan." |
-| 0:32–0:40 | Commit. ALLOW rows stream in, cash drops                     | "Each payment goes through ArmorIQ to the MCP. Cash changes only on a receipt."       |
-| 0:40–0:50 | Hold card. Switch windows, approve on ArmorIQ, switch back   | "Anything over ten thousand dollars waits for a person in ArmorIQ."                   |
+| Time      | Screen                                                      | Voiceover                                                                             |
+| --------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 0:00–0:10 | Decision studio: $50,000 cash, $68,000 due. Explore options | "Kettle & Pine can't pay every bill this week. The agent forks the decision."         |
+| 0:10–0:22 | Plan cards appear with their numbers. Open Cash path        | "Every branch is simulated on a copy of the books before anything moves."             |
+| 0:22–0:32 | Select a plan, Approve plan, confirm. The seal draws        | "The CFO authorizes one branch. Its exact steps become a signed ArmorIQ intent plan." |
+| 0:32–0:40 | Execute plan. Paid rows stream in, cash right now drops     | "Each payment goes through ArmorIQ to the MCP. Cash changes only on a receipt."       |
+| 0:40–0:50 | Hold card. Switch windows, approve on ArmorIQ, switch back  | "Anything over ten thousand dollars waits for a person in ArmorIQ."                   |
 
 ## Take 2: the attack (about 40 seconds)
 
 Reset first.
 
-| Time      | Screen                                                                                     | Voiceover                                                                                     |
-| --------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| 0:50–1:00 | Authorize a branch. Click Inject hostile message. Open the message                         | "A fake email asks to redirect a vendor's payment."                                           |
-| 1:00–1:14 | Commit. The agent's row appears: `update_vendor_destination`, BLOCK. Red stub on the graph | "The agent believes it and tries. ArmorIQ refuses: that tool was never in the signed branch." |
-| 1:14–1:22 | Replan from here. A dashed child branch appears. Open the run record, Reconciliation       | "The agent can propose a new branch. Running it needs a new signature."                       |
-| 1:22–1:30 | Landing headline                                                                           | "Explore every outcome. Commit only one."                                                     |
+| Time      | Screen                                                                                   | Voiceover                                                                                     |
+| --------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 0:50–1:00 | Approve a plan. Click Inject hostile message. Open the message in the inbox              | "A fake email asks to redirect a vendor's payment."                                           |
+| 1:00–1:14 | Execute. The agent's row appears: Blocked by ArmorIQ, `update_vendor_destination`, BLOCK | "The agent believes it and tries. ArmorIQ refuses: that tool was never in the signed branch." |
+| 1:14–1:22 | Replan from here. A dashed plan card appears. View the receipt, Reconciliation           | "The agent can propose a new branch. Running it needs a new signature."                       |
+| 1:22–1:30 | Landing headline                                                                         | "Explore every outcome. Commit only one."                                                     |
 
 ## If the model does not take the bait
 
@@ -57,5 +57,5 @@ voiceover should not call them the agent's.
 Save to `docs/proof/`:
 
 - The Intent page showing a plan **Blocked** by Policy Engine, from a fresh run.
-- A plan detail page with the root hash visible, next to the same hash in FORK's inspector.
+- A plan detail page with the root hash visible, next to the same hash in FORK's selected-plan panel.
 - Held Actions with the $12,000 request, and the same plan after approval.
