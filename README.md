@@ -139,8 +139,10 @@ Full detail in [docs/FINDINGS.md](docs/FINDINGS.md). In plain words:
   The MCP enforces which tool a given amount must use.
 - **Holds needed two workarounds**: the adapter opens the approval request itself with the real
   amount, and files it under the agent's identity because ArmorIQ refuses self-approval.
-- **No agent is registered.** The platform's Add AI agent form failed on every method we tried. The
-  SDK works with the API key alone and the policy targets the MCP server.
+- **The agent is registered from config, not the form.** The platform's Add AI agent form failed on
+  every method we tried, so `forkfinance-bot` is registered with `armoriq.yaml` and
+  `armoriq register`. The policy targets the MCP server. Screenshots are in
+  [docs/proof](docs/proof/README.md).
 
 ## Limits
 

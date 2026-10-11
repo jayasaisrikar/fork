@@ -266,8 +266,7 @@ Chosen, installed in the phase that needs them: `better-sqlite3` 13.0.3, `drizzl
   rule is that only this package imports it.
 - **Spikes use `invokeWithPolicy` for every call**, because plain `invoke` does not turn policy
   responses into typed exceptions (FINDINGS A15).
-- **`FORK_SPEC_FINAL.md` was added to the repo on 2026-10-11**, after the build. Until then it was
-  pasted into the session, not saved as a file.
+- **`FORK_SPEC_FINAL.md` is not in the repo.** It was pasted into the session, not saved as a file.
 - **The 14-day cash path steps down once.** Every payment in a branch goes out today and the
   scenario has no incoming cash, so the path is opening cash on day 0 and cash-after from day 1.
   Late fees are reported as exposure and are not subtracted from cash, which is what makes branch

@@ -73,4 +73,5 @@ again on the hosted engine after deploying (5 passed).
 `pnpm test:e2e` regenerates screenshots into the gitignored `test-results/screenshots/` (studio,
 landing, run record, audit, how it works and lab, at 1440 and 390 wide, light and dark).
 
-`docs/proof/` is for screenshots of the ArmorIQ platform and is filled by hand.
+`docs/proof/` holds screenshots of the ArmorIQ platform and of FORK's record of the same run. Its
+README says what each one shows.

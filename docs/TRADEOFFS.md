@@ -17,7 +17,9 @@ What was cut, changed or left weaker than the spec, and why. The running log is 
 - **The "tool not in plan" block is raised inside the SDK**, before any network call. It is real
   ArmorIQ enforcement, but the per-call decision does not appear on the platform. FORK marks the
   plan failed on ArmorIQ afterwards. A policy block does reach the proxy.
-- **No registered agent.** The platform form would not complete. Plans show `__sdk_multiuser__`.
+- **The agent was registered late, from config.** The platform form would not complete, so
+  `forkfinance-bot` is registered with `armoriq register`. Plans made before that show
+  `__sdk_multiuser__`.
 - **Recipient validation and velocity limits are not configured.** The policy editor has no place
   for them. The MCP checks the recipient itself.
 

@@ -4,7 +4,6 @@ dist
 pnpm-lock.yaml
 docs/screenshots
 docs/proof
-FORK_SPEC_FINAL.md
 .next-e2e
 test-results
 apps/web/data
