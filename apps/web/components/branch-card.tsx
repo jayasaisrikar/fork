@@ -44,13 +44,13 @@ export function AuthorizationSeal({ hash, size = 44 }: { hash: string; size?: nu
   );
 }
 
-function StatusTags({ branch, best }: { branch: Branch; best?: boolean }) {
+function StatusTags({ branch, recommended }: { branch: Branch; recommended?: boolean }) {
   const status = statusOf(branch.status);
   return (
     <>
       {branch.status === 'INFEASIBLE' ? <Tag tone="bad">Not possible</Tag> : null}
       {branch.status === 'SIMULATED' ? (
-        <Tag tone={best ? 'good' : 'gray'}>{best ? 'Most cash left' : 'Alternative'}</Tag>
+        <Tag tone={recommended ? 'good' : 'gray'}>{recommended ? 'Recommended' : 'Alternative'}</Tag>
       ) : (
         <Tag tone={status.tone}>{status.text}</Tag>
       )}
@@ -72,12 +72,14 @@ const frame = (branch: Branch, selected: boolean) => {
 export function PlanCard({
   branch,
   selected,
-  best,
+  recommended,
+  reason,
   onSelect,
 }: {
   branch: Branch;
   selected: boolean;
-  best?: boolean;
+  recommended?: boolean;
+  reason?: string;
   onSelect: () => void;
 }) {
   const p = branch.projection;
@@ -93,12 +95,18 @@ export function PlanCard({
         <span className="border-line bg-surface mr-auto flex h-7 min-w-7 items-center justify-center rounded-[6px] border px-1.5 text-[13px] font-extrabold">
           {branch.label}
         </span>
-        <StatusTags branch={branch} best={best} />
+        <StatusTags branch={branch} recommended={recommended} />
       </span>
       <span className="mt-1 text-[15px] leading-snug font-extrabold">{branch.title}</span>
       <span className="text-muted line-clamp-3 text-[12px] leading-relaxed">
         {branch.rationale}
       </span>
+      {recommended && reason ? (
+        <span className="border-line mt-1 border-l-2 pl-2 text-[12px] leading-relaxed">
+          <span className="text-muted font-semibold">Why: </span>
+          {reason}
+        </span>
+      ) : null}
       {p ? (
         <>
           <span className="mt-auto flex items-baseline gap-2 pt-2">

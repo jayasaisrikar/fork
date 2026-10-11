@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { BillsTable, SituationBar } from '@/components/books';
 import { BranchCanvas } from '@/components/branch-canvas';
 import { PlanCard } from '@/components/branch-card';
+import { recommend } from '@/lib/recommend';
 import {
   CommandPalette,
   Shell,
@@ -313,8 +314,7 @@ export default function StudioPage() {
   const [title, lead] = headline(view, stage, due > base.cashCents);
   const { action, hint } = nextStep(ws, stage, selected);
   const empty = branches.length === 0;
-  const best =
-    stage === 'Approve' ? bestOf(branches.filter((b) => b.status === 'SIMULATED')) : null;
+  const recommended = recommend(branches);
   const simulated = branches.some((branch) => branch.projection);
   const vendorName = (id: unknown) =>
     base.vendors.find((item) => item.id === id)?.name ?? String(id ?? '');
@@ -459,7 +459,8 @@ export default function StudioPage() {
                       <PlanCard
                         branch={branch}
                         selected={branch.id === selectedId}
-                        best={branch.id === best?.id}
+                        recommended={recommended?.branchId === branch.id}
+                        reason={recommended?.branchId === branch.id ? recommended.reason : undefined}
                         onSelect={() => select(branch.id)}
                       />
                     </li>
