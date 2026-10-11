@@ -25,13 +25,15 @@ cloudflared tunnel --config /tmp/empty-cloudflared.yml --url http://127.0.0.1:87
 The empty config matters if you have a `~/.cloudflared/config.yml`: without it a quick tunnel picks
 up that file's routing rules and answers 404.
 
-Hosted: deploy the `Dockerfile` (engine and MCP on one port) and use `https://<host>/mcp`.
+Hosted: run `pnpm serve` (engine and MCP on one port) behind HTTPS and use `https://<host>/mcp`.
+See [DEPLOY.md](DEPLOY.md).
 
 ## 3. Register the MCP
 
 MCP Registry, Add MCP:
 
-- **Name:** `fork-finance-mcp`. It must match exactly.
+- **Name:** `fork-finance-mcp`. It must match exactly. If you register under another name, set
+  `FORK_MCP_NAME` to it for the engine (the hosted demo uses `forkfinance-mcp`).
 - **URL:** `https://<host>/mcp`
 - **Authentication:** API key. The value is your `FORK_MCP_KEY`.
 
@@ -43,7 +45,7 @@ popover in FORK's workspace: it lists the registered tools from the API. There s
 
 ## 4. Policy
 
-Policies, New policy. Target **An MCP Server** and pick `fork-finance-mcp`. Open the **YAML** tab
+Policies, New policy. Target **An MCP Server** and pick the MCP you registered. Open the **YAML** tab
 and paste [`armoriq/policy.fork.yaml`](../armoriq/policy.fork.yaml), replacing the `target` id with
 your MCP's id (it is shown in the editor). Then **Activate**. A draft enforces nothing.
 

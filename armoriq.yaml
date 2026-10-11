@@ -1,0 +1,33 @@
+# FORK agent identity, MCP and policy as config-as-code.
+#   armoriq validate --config armoriq.yaml
+#   armoriq register --config armoriq.yaml
+# Needs the PYTHON CLI (pip install armoriq-sdk); @armoriq/sdk ships init/validate/register as stubs.
+# `register` upserts the agent row, the MCP row and the policy using the API key (no session needed),
+# and renames the MCP registration to the id below - keep it equal to the engine's FORK_MCP_NAME.
+version: v1
+identity:
+  api_key: $ARMORIQ_API_KEY
+  user_id: fork-engine
+  agent_id: forkfinance-bot
+environment: production
+mcp_servers:
+  - id: forkfinance-mcp
+    url: https://crosswake-instance.tail39ef1.ts.net:8443/mcp
+    description: FORK finance MCP (treasury commit tools)
+    auth:
+      type: api_key
+      api_key: $FORK_MCP_KEY
+policy:
+  allow:
+    - forkfinance-mcp.get_treasury_balance
+    - forkfinance-mcp.list_invoices
+    - forkfinance-mcp.get_vendor
+    - forkfinance-mcp.get_sandbox_messages
+    - forkfinance-mcp.get_payment_receipt
+    - forkfinance-mcp.execute_payment
+    - forkfinance-mcp.execute_large_payment
+  deny:
+    - forkfinance-mcp.update_vendor_destination
+intent:
+  ttl_seconds: 1800
+  require_csrg: false

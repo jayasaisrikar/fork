@@ -164,3 +164,36 @@ test('how it works explains the harness and links back to the studio', async ({ 
   await page.getByRole('link', { name: 'Open the decision studio' }).click();
   await expect(page).toHaveURL(/\/app$/);
 });
+
+for (const width of [1440, 390]) {
+  test(`lab at ${width}px forks both domains and the dry run signs nothing`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on('console', (message) => message.type() === 'error' && errors.push(message.text()));
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+    await page.goto('/app/lab');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('One harness. Two domains.');
+
+    // portfolio: read-only, so a feasible branch still has nothing to sign
+    await expect(page.getByRole('button', { name: /Trim to the limit/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(page.getByText('0 tool steps.')).toBeVisible();
+    await page.getByRole('button', { name: /Move it all to T-bills/ }).click();
+    await expect(page.getByText('Buys $5,000.00 more than the cash available')).toBeVisible();
+
+    // treasury: the same path, and this one has payments to sign
+    await page.getByRole('button', { name: /Treasury/ }).click();
+    await expect(page.getByRole('button', { name: /Preserve runway/ })).toContainText('$10,000');
+    await expect(page.getByText('9 tool steps')).toBeVisible();
+    await page.getByRole('button', { name: /Pay everything/ }).click();
+    await expect(page.getByText('Overdraws the account by $18,000')).toBeVisible();
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    await bothThemes(page, 'lab');
+    expect(errors).toEqual([]);
+  });
+}

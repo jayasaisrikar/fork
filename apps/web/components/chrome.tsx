@@ -111,6 +111,7 @@ const APP = [
   { name: 'Studio', href: '/app' },
   { name: 'History', href: '/app/runs' },
   { name: 'Activity', href: '/app/audit' },
+  { name: 'Lab', href: '/app/lab' },
 ] as const;
 const SITE = [
   { name: 'Overview', href: '/' },

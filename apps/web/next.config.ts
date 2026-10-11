@@ -5,7 +5,12 @@ import type { NextConfig } from 'next';
 const proxy = process.env.ENGINE_PROXY_URL?.replace(/\/$/, '');
 
 const config: NextConfig = {
-  transpilePackages: ['@fork/shared', '@fork/domain-finance', '@fork/harness'],
+  transpilePackages: [
+    '@fork/shared',
+    '@fork/domain-finance',
+    '@fork/domain-portfolio',
+    '@fork/harness',
+  ],
   devIndicators: false,
   // the browser tests run their own dev server next to yours, so they need their own build folder
   distDir: process.env.NEXT_DIST_DIR ?? '.next',

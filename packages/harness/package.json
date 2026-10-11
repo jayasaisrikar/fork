@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./dry-run": "./src/dry-run.ts",
+    "./lifecycle": "./src/lifecycle.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

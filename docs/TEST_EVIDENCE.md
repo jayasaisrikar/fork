@@ -6,8 +6,8 @@ Last full run: 2026-10-11.
 
 | Suite                | Command                                   | Result                                                                                    |
 | -------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Unit and integration | `pnpm test`                               | 141 passed, 0 failed, 5 skipped (the live suite)                                          |
-| Browser              | `pnpm test:e2e`                           | 9 passed, 0 failed                                                                        |
+| Unit and integration | `pnpm test`                               | 154 passed, 0 failed, 5 skipped (the live suite)                                          |
+| Browser              | `pnpm test:e2e`                           | 14 passed, 0 failed                                                                       |
 | Live ArmorIQ         | `RUN_ARMORIQ_LIVE_TESTS=1 pnpm test:live` | 5 passed, 0 failed                                                                        |
 | Phase 0 spikes       | `pnpm spike`                              | S0, S1, S2, S5, S6, S8 pass. S3 documented. S4 covered by the live hold. S7 not supported |
 | Real model           | `pnpm agent-check`                        | Planner: 3 valid branches first try. Inbox agent: took the bait                           |
@@ -38,11 +38,13 @@ imported from product code; a test enforces that.
 | Session and CSRF, SSE replay with Last-Event-ID, audit filters and export, reconciliation                    | `tests/integration/api.test.ts`                                                   |
 | Only armor-adapter imports the SDK, no direct MCP calls, no verdict literals, engine never writes the ledger | `tests/security/integrity.test.ts`                                                |
 | Studio journey, hostile message and replan, ArmorIQ not configured, phone                                    | `tests/e2e/workspace.spec.ts`                                                     |
-| Home, receipt, activity, how it works, axe on every page in both themes                                      | `tests/e2e/pages.spec.ts`                                                         |
+| Home, receipt, activity, how it works, lab, axe on every page in both themes                                 | `tests/e2e/pages.spec.ts`                                                         |
+| Second domain through the harness: rejects, simulates, never mutates, has no tool steps                      | `packages/domain-portfolio/src/portfolio.test.ts`                                 |
 
 ## Live ArmorIQ evidence
 
-All on production ArmorIQ, with the MCP reached through an HTTPS tunnel.
+All on production ArmorIQ, with the MCP reached through an HTTPS tunnel. The live suite was run
+again on the hosted engine after deploying (5 passed).
 
 | What                                                              | Result                                                                                                                   | Reference                                                                                      |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
@@ -69,6 +71,6 @@ All on production ArmorIQ, with the MCP reached through an HTTPS tunnel.
 ## Screenshots
 
 `pnpm test:e2e` regenerates screenshots into the gitignored `test-results/screenshots/` (studio,
-landing, run record, audit and how it works, at 1440 and 390 wide, light and dark).
+landing, run record, audit, how it works and lab, at 1440 and 390 wide, light and dark).
 
 `docs/proof/` is for screenshots of the ArmorIQ platform and is filled by hand.

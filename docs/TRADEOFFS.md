@@ -23,7 +23,9 @@ What was cut, changed or left weaker than the spec, and why. The running log is 
 
 ## Scope
 
-- **Harness Lab and the portfolio domain: not built.** P2 in the spec.
+- **The portfolio domain is read-only and fixture-only.** `/app/lab` forks it through the same
+  harness code as treasury, in the browser. It has no tools, so nothing is signed or run, and no
+  model proposes its branches. The engine still runs treasury only.
 - **Voice briefing: not built.** Stretch.
 - **Branches cannot be edited.** Changing course means a new branch, so "an edit creates a new
   version" has nothing to do.
@@ -67,6 +69,8 @@ What was cut, changed or left weaker than the spec, and why. The running log is 
 
 ## Hosting
 
-- **Not deployed yet.** A Dockerfile and a single-port entry exist and were smoke-tested locally.
+- **The engine and MCP run on a small shared VM, not a managed host.** One systemd service on one
+  port, published over HTTPS with Tailscale Funnel. The live suite passed there. The Dockerfile and
+  `railway.json` are an alternative path that has not been built or deployed.
 - **SQLite on local disk.** On most hosts that means the ledger resets on redeploy unless a volume
   is attached. For a sandbox demo that is acceptable.

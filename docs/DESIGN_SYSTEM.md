@@ -24,6 +24,7 @@ below the plain-language answer.
 | Decisions       | `/app/runs`      | Every run and its outcome                                         |
 | Receipt         | `/app/runs/[id]` | What was paid, what was stopped, then the full evidence           |
 | Activity        | `/app/audit`     | The append-only event log, filterable and exportable              |
+| Lab             | `/app/lab`       | Two domains through one harness; the second cannot act            |
 | How it works    | `/how`           | The harness, the four kinds of refusal, the adapter contract      |
 
 The studio is one column of cards beside a sticky selected-plan panel: situation bar, plan cards

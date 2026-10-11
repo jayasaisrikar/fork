@@ -20,7 +20,8 @@ export type StepStatus =
   | 'EXECUTED'
   | 'NOT_EXECUTED';
 
-const BRANCH_NEXT: Record<BranchStatus, BranchStatus[]> = {
+// exported so the lab page draws the lifecycle from the table the guards use
+export const BRANCH_NEXT: Record<BranchStatus, BranchStatus[]> = {
   PROPOSED: ['SIMULATED', 'INFEASIBLE', 'STALE'],
   SIMULATED: ['APPROVED', 'INFEASIBLE', 'STALE'],
   APPROVED: ['COMMITTING', 'STALE', 'CANCELLED'],

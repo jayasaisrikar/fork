@@ -1,6 +1,24 @@
 # Progress
 
 ```
+PHASE 6, LAB AND HOSTING — 2026-10-11 22:10 IST
+Built: packages/domain-portfolio (read-only second adapter), dryRun() in packages/harness,
+  /app/lab (both domains through the same harness code, adapter table, lifecycle drawn from the
+  guard table). Docs corrected for what is hosted.
+Tests: 154 unit and integration passed / 0 failed / 5 skipped without the live flag.
+  Browser: 14 passed, including the lab at 1440 and 390 with axe in both themes.
+ArmorIQ live: nothing new. The engine and MCP are hosted on a VM and the live suite passed there
+  (5 of 5) before this change; /api/health reports ArmorIQ reachable and eight tools.
+Changed from spec: the portfolio fork is fixtures run in the browser, not an engine run, and the
+  engine's own simulate step does not call dryRun().
+UI quality check (lab; 1440 and 390; both themes): same answers as Phase 5. No verdict color off
+  a verdict; "Rejected by FORK" uses the hatch and its own color.
+Not done, needs the operator: web app on Vercel, WEB_ORIGIN on the engine, platform screenshots
+  in docs/proof, the video, the submission. Still no registered agent on the platform.
+Next risk: the rules say agents must be onboarded on the platform. The form still fails.
+```
+
+```
 PHASE 0 IN PROGRESS — 2026-10-10 22:29 IST
 Built: pnpm workspace (apps/web, apps/engine, apps/finance-mcp, packages/shared,
   packages/armor-adapter). Spike-surface fork-finance-mcp with get_treasury_balance,
@@ -248,7 +266,8 @@ Chosen, installed in the phase that needs them: `better-sqlite3` 13.0.3, `drizzl
   rule is that only this package imports it.
 - **Spikes use `invokeWithPolicy` for every call**, because plain `invoke` does not turn policy
   responses into typed exceptions (FINDINGS A15).
-- **`FORK_SPEC_FINAL.md` is not in the repo.** It was pasted into the session, not saved as a file.
+- **`FORK_SPEC_FINAL.md` was added to the repo on 2026-10-11**, after the build. Until then it was
+  pasted into the session, not saved as a file.
 - **The 14-day cash path steps down once.** Every payment in a branch goes out today and the
   scenario has no incoming cash, so the path is opening cash on day 0 and cash-after from day 1.
   Late fees are reported as exposure and are not subtracted from cash, which is what makes branch
@@ -313,5 +332,5 @@ Chosen, installed in the phase that needs them: `better-sqlite3` 13.0.3, `drizzl
   confirmed from the PDF, so it is left out.
 - **No GitHub link until `NEXT_PUBLIC_REPO_URL` is set.** A dead link is worse than none.
 - **No platform screenshot on the landing yet.** It needs a person at the ArmorIQ console.
-- **The Lab page is not built** (P2). Its tab is disabled with a reason.
+- **The Lab page was built last** (P2), with a read-only portfolio domain on fixture data.
 - **Lighthouse was not run.** axe covers the accessibility gate.

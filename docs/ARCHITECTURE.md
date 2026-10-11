@@ -85,4 +85,12 @@ Then it writes balanced postings, applies the payment to the vendor's invoices, 
 The engine and the MCP share one SQLite file, so they run in one process on one port
 (`scripts/serve.ts`, `Dockerfile`): the engine at `/api`, the MCP at `/mcp`. ArmorIQ's proxy needs
 the MCP at a public HTTPS URL. The web app is hosted separately and talks to the engine over HTTPS
-and SSE.
+and SSE. What is actually running is in [DEPLOY.md](DEPLOY.md).
+
+## A second domain
+
+`packages/domain-portfolio` implements the same `ForkDomainAdapter` for a portfolio rebalance. Its
+`toToolSteps` returns nothing, so there is nothing to approve, sign or run: the domain is read-only
+by construction, not by a flag. `dryRun()` in `packages/harness/src/dry-run.ts` validates,
+simulates and applies the lifecycle guard for any adapter, and `/app/lab` runs both domains through
+it in the browser. The engine itself is wired to treasury only.

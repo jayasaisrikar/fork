@@ -43,16 +43,17 @@ Browser ──(session cookie + CSRF)──► engine API ──► harness (lif
                         sandbox ledger (append-only postings) ──► receipt
 ```
 
-| Path                      | What it is                                                  |
-| ------------------------- | ----------------------------------------------------------- |
-| `apps/web`                | Next.js: home, decision studio, receipts, activity          |
-| `apps/engine`             | Hono: API, SSE, commit runner, planner and inbox agents     |
-| `apps/finance-mcp`        | `fork-finance-mcp`, the MCP server ArmorIQ calls            |
-| `packages/harness`        | Domain-agnostic lifecycles, approved-plan hash, commit loop |
-| `packages/domain-finance` | Pure treasury simulation, rules, fixtures                   |
-| `packages/armor-adapter`  | The only place `@armoriq/sdk` is imported                   |
-| `packages/db`             | Drizzle schema, migrations, seed, ledger helpers            |
-| `packages/shared`         | Money, canonical JSON, hashing, execution capabilities      |
+| Path                        | What it is                                                  |
+| --------------------------- | ----------------------------------------------------------- |
+| `apps/web`                  | Next.js: home, decision studio, receipts, activity, lab     |
+| `apps/engine`               | Hono: API, SSE, commit runner, planner and inbox agents     |
+| `apps/finance-mcp`          | `fork-finance-mcp`, the MCP server ArmorIQ calls            |
+| `packages/harness`          | Domain-agnostic lifecycles, plan hash, commit loop, dry run |
+| `packages/domain-finance`   | Pure treasury simulation, rules, fixtures                   |
+| `packages/domain-portfolio` | A second, read-only domain: rebalancing dry run, no tools   |
+| `packages/armor-adapter`    | The only place `@armoriq/sdk` is imported                   |
+| `packages/db`               | Drizzle schema, migrations, seed, ledger helpers            |
+| `packages/shared`           | Money, canonical JSON, hashing, execution capabilities      |
 
 More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), including the threat model.
 
@@ -95,7 +96,8 @@ Fill in `.env`:
 | `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL_PLANNER`, `LLM_MODEL_INBOX` | Any OpenAI-compatible endpoint                                        |
 
 Then onboard on ArmorIQ: see [docs/ARMORIQ_SETUP.md](docs/ARMORIQ_SETUP.md). In short: expose the
-MCP over HTTPS, register it as `fork-finance-mcp`, and paste the policy.
+MCP over HTTPS, register it as `fork-finance-mcp` (or set `FORK_MCP_NAME` to the name you
+registered), and paste the policy.
 
 Run it, in three terminals:
 
@@ -111,8 +113,8 @@ stopped) wipes the sandbox ledger.
 ## Tests
 
 ```sh
-pnpm test          # 141 unit and integration tests, no network
-pnpm test:e2e      # 9 browser tests (Playwright), against an in-process ArmorIQ stand-in
+pnpm test          # 154 unit and integration tests, no network
+pnpm test:e2e      # 14 browser tests (Playwright), against an in-process ArmorIQ stand-in
 RUN_ARMORIQ_LIVE_TESTS=1 pnpm test:live   # 5 tests against real ArmorIQ; needs a fresh ledger
 pnpm spike         # the Phase 0 spikes against real ArmorIQ
 pnpm agent-check   # asks the configured model for branches and shows it the hostile email
@@ -146,7 +148,9 @@ Full detail in [docs/FINDINGS.md](docs/FINDINGS.md). In plain words:
 - Demo authentication: one CFO, password from the environment.
 - The base snapshot is read from the shared database, not through an ArmorIQ-guarded read.
 - The engine and the MCP share one SQLite file, so they are deployed together.
-- The harness lab page and the second domain were not built.
+- The second domain (portfolio) is a dry run on fixture data. It has no tools, no model and no
+  ArmorIQ path. `/app/lab` shows it next to treasury through the same harness code.
+- The engine and MCP are hosted on a small shared VM. See [docs/DEPLOY.md](docs/DEPLOY.md).
 - See [docs/TRADEOFFS.md](docs/TRADEOFFS.md).
 
 ## Pre-existing code

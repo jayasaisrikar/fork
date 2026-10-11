@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@fork/domain-finance": "workspace:*",
+    "@fork/domain-portfolio": "workspace:*",
+    "@fork/harness": "workspace:*",
     "@fork/shared": "workspace:*",
     "@tanstack/react-table": "9.2.4",
     "@xyflow/react": "12.12.0",

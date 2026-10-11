@@ -10,6 +10,7 @@ COPY apps/web/package.json apps/web/
 COPY packages/armor-adapter/package.json packages/armor-adapter/
 COPY packages/db/package.json packages/db/
 COPY packages/domain-finance/package.json packages/domain-finance/
+COPY packages/domain-portfolio/package.json packages/domain-portfolio/
 COPY packages/harness/package.json packages/harness/
 COPY packages/shared/package.json packages/shared/
 RUN pnpm install --frozen-lockfile --filter '!@fork/web'
