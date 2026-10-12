@@ -259,3 +259,45 @@ test('proof: a phone shows it without sideways scrolling', async ({ page }) => {
   );
   expect(overflow).toBeLessThanOrEqual(0);
 });
+
+test('proof: a cooldown shows the wait and leaves the recording alone', async ({ page }) => {
+  await page.route('**/api/proof/run', (route) =>
+    route.fulfill({
+      status: 429,
+      contentType: 'application/json',
+      headers: { 'retry-after': '17' },
+      body: JSON.stringify({
+        code: 'RATE_LIMITED',
+        message: 'Proof Mode is cooling down',
+        details: { retryAfterSeconds: 17 },
+      }),
+    }),
+  );
+  await page.goto('/proof');
+  const probe = page.getByRole('region', { name: 'Live security probe' });
+  await probe.getByRole('button', { name: 'Run it now' }).click();
+  await expect(probe.getByRole('alert')).toContainText('Try again in 17 seconds');
+  await expect(probe.getByText('Run just now')).toHaveCount(0);
+  await expect(page.getByText('$4,000 paid as approved')).toBeVisible();
+});
+
+test('proof: an ArmorIQ outage is shown as an outage, never as a block', async ({ page }) => {
+  await page.route('**/api/proof/run', (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code: 'ARMORIQ_UNAVAILABLE',
+        message: "ArmorIQ didn't respond. The probe did not complete and nothing was changed.",
+      }),
+    }),
+  );
+  await page.goto('/proof');
+  const probe = page.getByRole('region', { name: 'Live security probe' });
+  await probe.getByRole('button', { name: 'Run it now' }).click();
+  await expect(probe.getByRole('alert')).toContainText("ArmorIQ didn't respond");
+  // the preset's description says "blocks"; this is the verdict pill
+  await expect(probe.getByText('BLOCK', { exact: true })).toHaveCount(0);
+  await expect(probe.getByText('Run just now')).toHaveCount(0);
+  await expect(page.getByText('$4,000 paid as approved')).toBeVisible();
+});

@@ -121,8 +121,8 @@ stopped) wipes the sandbox ledger.
 ## Tests
 
 ```sh
-pnpm test          # 208 unit and integration tests, no network
-pnpm test:e2e      # 17 browser tests (Playwright), against an in-process ArmorIQ stand-in
+pnpm test          # 224 unit and integration tests, no network
+pnpm test:e2e      # 19 browser tests (Playwright), against an in-process ArmorIQ stand-in
 RUN_ARMORIQ_LIVE_TESTS=1 pnpm test:live   # 7 tests against real ArmorIQ; needs a fresh ledger
 pnpm spike         # the Phase 0 spikes against real ArmorIQ
 pnpm agent-check   # asks the configured model for branches and shows it the hostile email

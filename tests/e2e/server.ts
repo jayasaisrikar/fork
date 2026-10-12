@@ -28,6 +28,8 @@ function fresh(armoriq: boolean) {
       }),
     },
     webOrigin,
+    // set to check the web app's proxy stamps probes the way the hosted engine expects
+    process.env.E2E_EDGE_KEY || undefined,
   ).app;
 }
 

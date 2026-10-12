@@ -191,6 +191,8 @@ export const auditEvents = sqliteTable('audit_events', {
 export const proofRuns = sqliteTable('proof_runs', {
   id: integer().primaryKey({ autoIncrement: true }),
   attack: text().notNull(),
+  // a short hash of the caller as the trusted edge saw it. null when there is no trusted edge.
+  client: text(),
   startedAt: text().notNull(),
   finishedAt: text(),
   result: text({ mode: 'json' }).$type<unknown>(),

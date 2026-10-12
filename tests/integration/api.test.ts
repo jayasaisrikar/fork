@@ -420,4 +420,46 @@ describe('proof mode API', () => {
     const response = await world().app.request('/api/health', { method: 'HEAD' });
     expect(response.status).toBe(200);
   });
+
+  it('with an edge key set, takes probes only from the edge and never trusts a bare client header', async () => {
+    const w = world({}, true, {}, undefined, 'edge-secret');
+    const post = (headers: Record<string, string>) =>
+      w.app.request('/api/proof/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify({ attack: 'unplanned_tool' }),
+      });
+
+    const untrusted: Record<string, string>[] = [
+      {},
+      { 'x-fork-client': '203.0.113.9' },
+      { 'x-fork-edge-key': 'wrong', 'x-fork-client': '203.0.113.9' },
+      { 'x-forwarded-for': '203.0.113.9' },
+    ];
+    for (const headers of untrusted) {
+      const refused = await post(headers);
+      expect(refused.status).toBe(403);
+      expect((await refused.json()).code).toBe('EDGE_ONLY');
+    }
+    expect(w.db.select().from(schema.proofRuns).all()).toEqual([]);
+
+    expect(
+      (await post({ 'x-fork-edge-key': 'edge-secret', 'x-fork-client': '203.0.113.9' })).status,
+    ).toBe(200);
+    const [row] = w.db.select().from(schema.proofRuns).all();
+    // an identity to count by, not an address to keep
+    expect(row!.client).toMatch(/^[0-9a-f]{16}$/);
+    expect(JSON.stringify(row)).not.toContain('203.0.113.9');
+  });
+
+  it('without an edge key, ignores client headers and applies the shared limits only', async () => {
+    const w = world();
+    const response = await w.app.request('/api/proof/run', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-fork-client': '203.0.113.9' },
+      body: JSON.stringify({ attack: 'unplanned_tool' }),
+    });
+    expect(response.status).toBe(200);
+    expect(w.db.select().from(schema.proofRuns).all()[0]!.client).toBeNull();
+  });
 });

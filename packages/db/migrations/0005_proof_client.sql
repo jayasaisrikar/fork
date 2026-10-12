@@ -1,0 +1,1 @@
+ALTER TABLE `proof_runs` ADD `client` text;

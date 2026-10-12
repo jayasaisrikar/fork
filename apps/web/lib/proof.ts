@@ -15,7 +15,7 @@ export interface ProofStep {
   tool: string;
   armoriq: 'allow' | 'block' | 'error';
   enforcedBy: Enforcer | null;
-  outcome: 'executed' | 'refused' | 'not_reached';
+  outcome: 'executed' | 'refused' | 'not_reached' | 'unknown';
   errorClass: string | null;
   matchedExpectation: boolean;
 }
@@ -73,6 +73,7 @@ export const OUTCOMES: Record<ProofStep['outcome'], string> = {
   executed: 'Executed',
   refused: 'Refused by the server',
   not_reached: 'Never reached the server',
+  unknown: 'Could not be established',
 };
 
 export const runProof = (attack: Attack) => api<ProofResult>('POST', '/api/proof/run', { attack });
