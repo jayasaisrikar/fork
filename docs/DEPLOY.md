@@ -12,10 +12,11 @@ and MCP share one SQLite file, so they run together on one port (`scripts/serve.
 - **ArmorIQ points at it.** The MCP is registered as `forkfinance-mcp` and the `fork-treasury`
   policy targets that registration, so the service runs with `FORK_MCP_NAME=forkfinance-mcp`.
 - **Web app: deployed** at `https://fork-dun.vercel.app`, proxying `/api` to the engine.
-- **Both still run `main`, not `proof-mode`** (checked 2026-10-12 through the Vercel URL):
-  `/proof` answers 404, `POST /api/proof/run` answers 401, and `GET /api/runs` answers 200 with
-  nobody signed in. That last one is the open read access the `proof-mode` branch closes. Section 5
-  is the rollout.
+- **Proof Mode is live.** `proof-mode` was merged into `main` at `2b565ca` and rolled out to both
+  on 2026-10-12, with `PROOF_EDGE_KEY` set on the engine and on Vercel (Production). Checked the
+  same day through the Vercel URL with nobody signed in: `/proof` loads, `GET /api/runs` answers
+  401, a probe from the page answers 200, and a probe sent straight to the engine answers 403.
+  Results and plan ids are in [TEST_EVIDENCE.md](TEST_EVIDENCE.md).
 
 ## 1. Engine and MCP
 
@@ -127,14 +128,12 @@ Find out why first, then clear it: `POST /api/demo/proof-reset` with the `x-admi
 
 ## Not verified
 
-- The `proof-mode` branch on Vercel and on the hosted engine. On 2026-10-12 a production build of
-  the web app was run locally in proxy mode against a local engine with an edge key: `/proof`
-  loaded with nobody signed in, private routes answered 401, a probe through the proxy answered
-  200 even when the browser sent a forged key, direct calls to the engine answered 403, and the
-  eleventh probe from one visitor answered 429 with `Retry-After`. That engine used the in-process
-  ArmorIQ stand-in. Whether Vercel forwards the stamped headers the same way is not yet checked.
+- The per-visitor limit on Vercel. Probes through Vercel are accepted by the engine, which proves
+  the key is forwarded. That the eleventh probe from one visitor answers 429 was only run locally,
+  against a production build in proxy mode, because it would spend eleven ArmorIQ plans.
 - That `x-real-ip` on Vercel is the visitor's address in every case, for example behind another
   proxy the visitor controls. It is the platform's own header; this was not tested.
-- The two live Proof Mode cases against production ArmorIQ, and a matching row on
-  platform.armoriq.ai.
+- `PROOF_EDGE_KEY` on Vercel Preview deployments. It is set for Production only, so a preview
+  build's probes are refused by the engine.
+- A matching row on platform.armoriq.ai for the Proof Mode plans.
 - The Docker image and the Railway path.
