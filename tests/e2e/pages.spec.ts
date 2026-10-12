@@ -197,3 +197,57 @@ for (const width of [1440, 390]) {
     expect(errors).toEqual([]);
   });
 }
+
+test('proof: the recorded attack, then a live probe, with nobody signed in', async ({
+  page,
+  request,
+}) => {
+  await request.get(`${ENGINE}/__reset`);
+  const errors: string[] = [];
+  page.on('console', (message) => message.type() === 'error' && errors.push(message.text()));
+  await page.goto('/proof');
+
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('One approval');
+  const recorded = page.getByRole('region', { name: 'Recorded agent execution' });
+  await expect(recorded.getByText('$4,000 paid as approved')).toBeVisible();
+  await expect(recorded.getByText("$0 to the attacker's recipient")).toBeVisible();
+  await expect(recorded.getByText('IntentMismatchException')).toBeVisible();
+  await expect(recorded.getByText(/no approved-execution capability/)).toBeVisible();
+  await expect(page.getByText(/ledger (was )?unchanged/i)).toHaveCount(0);
+
+  const probe = page.getByRole('region', { name: 'Live security probe' });
+  await expect(probe.getByText('A scripted probe, not an agent')).toBeVisible();
+  await probe.getByRole('radio', { name: 'Forbidden tool' }).check();
+  await probe.getByRole('button', { name: 'Run it now' }).click();
+  await expect(probe.getByText('Run just now')).toBeVisible();
+  await expect(probe.getByText('PolicyBlockedException')).toBeVisible();
+  await expect(probe.getByText('ArmorIQ policy')).toBeVisible();
+  await expect(probe.getByText('Never reached the server')).toBeVisible();
+  await expect(probe.getByText('Unexpected')).toHaveCount(0);
+
+  await bothThemes(page, 'proof');
+  expect(errors).toEqual([]);
+});
+
+test('proof: the recording stands when the engine cannot be reached', async ({ page }) => {
+  await page.route('**/api/proof/run', (route) => route.abort());
+  await page.goto('/proof');
+  const probe = page.getByRole('region', { name: 'Live security probe' });
+  await probe.getByRole('button', { name: 'Run it now' }).click();
+  await expect(probe.getByRole('alert')).toContainText("didn't respond");
+  await expect(
+    page
+      .getByRole('region', { name: 'Recorded agent execution' })
+      .getByText('$4,000 paid as approved'),
+  ).toBeVisible();
+});
+
+test('proof: a phone shows it without sideways scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/proof');
+  await expect(page.getByText('$4,000 paid as approved')).toBeVisible();
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+});
