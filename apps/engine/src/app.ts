@@ -82,17 +82,25 @@ export function createApp(deps: AppDeps) {
     );
   });
 
-  // anything that changes state needs the CFO's session and its CSRF token
+  // public by exact method and path. a route that is not listed here needs the CFO session,
+  // so a new one is private until someone decides otherwise.
+  const PUBLIC = new Set([
+    'GET /api/health',
+    'POST /api/auth/login',
+    'GET /api/auth/me',
+    'POST /api/proof/run',
+  ]);
+  // these check the admin key themselves
+  const ADMIN = new Set(['POST /api/demo/fixture-branches', 'POST /api/demo/proof-reset']);
+
   app.use('/api/*', async (c, next) => {
-    const open =
-      c.req.method === 'GET' ||
-      c.req.path === '/api/auth/login' ||
-      c.req.path.startsWith('/api/demo/');
     const session = findSession(db, getCookie(c, SESSION_COOKIE), now());
     if (session) c.set('session', session);
-    if (open) return next();
+    const route = `${c.req.method} ${c.req.path}`;
+    if (PUBLIC.has(route) || ADMIN.has(route)) return next();
     if (!session) throw new ApiError('UNAUTHENTICATED', 401, 'Sign in as the CFO first');
-    if (!csrfMatches(session, c.req.header(CSRF_HEADER)))
+    // reading needs the session. changing anything needs the CSRF token as well.
+    if (c.req.method !== 'GET' && !csrfMatches(session, c.req.header(CSRF_HEADER)))
       throw new ApiError('BAD_CSRF', 403, 'Missing or wrong CSRF token');
     return next();
   });

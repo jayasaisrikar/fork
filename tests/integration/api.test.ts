@@ -38,7 +38,10 @@ function client(w: ReturnType<typeof world>) {
     return response;
   }
 
-  return { call, login, dropCsrf: () => (csrf = '') };
+  // the raw response, for downloads that are not JSON
+  const raw = (path: string) => w.app.request(path, { headers: { cookie } });
+
+  return { call, login, raw, dropCsrf: () => (csrf = '') };
 }
 
 describe('engine API', () => {
@@ -134,9 +137,17 @@ describe('engine API', () => {
     const w = world();
     const { run, b } = w.simulated();
     w.engine.authorizeBranch(b.id, CFO.email);
+    const signedIn = await w.app.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(CFO),
+    });
+    const cookie = (signedIn.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
 
     async function read(headers: Record<string, string>, wanted: number) {
-      const response = await w.app.request(`/api/runs/${run.id}/events`, { headers });
+      const response = await w.app.request(`/api/runs/${run.id}/events`, {
+        headers: { cookie, ...headers },
+      });
       const reader = response.body!.getReader();
       let text = '';
       while ((text.match(/^id: /gm) ?? []).length < wanted) {
@@ -174,6 +185,48 @@ describe('engine API', () => {
     expect((await api.call('GET', '/api/health')).body.armoriqConfigured).toBe(false);
     expect(cashCents(w.db, SCENARIO)).toBe(5_000_000);
   });
+  it('keeps every route private unless it is on the public list', async () => {
+    const w = world();
+    const open = new Set([
+      'GET /api/health',
+      'POST /api/auth/login',
+      'GET /api/auth/me',
+      'POST /api/proof/run',
+    ]);
+    const admin = new Set(['POST /api/demo/fixture-branches', 'POST /api/demo/proof-reset']);
+    const routes = w.app.routes.filter(
+      (route) =>
+        route.path.startsWith('/api/') && !route.path.includes('*') && route.method !== 'ALL',
+    );
+    expect(routes.length).toBeGreaterThan(15);
+
+    for (const { method, path } of routes) {
+      const key = `${method} ${path}`;
+      const response = await w.app.request(path.replace(/:\w+/g, '1'), {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: method === 'GET' ? undefined : '{}',
+      });
+      const body = (await response.json().catch(() => ({}))) as Json;
+      if (open.has(key)) expect(body.code, key).not.toBe('UNAUTHENTICATED');
+      else if (admin.has(key)) expect(response.status, key).toBe(403);
+      else
+        expect({ key, status: response.status, code: body.code }).toEqual({
+          key,
+          status: 401,
+          code: 'UNAUTHENTICATED',
+        });
+    }
+  });
+
+  it('lets a signed-in CFO read without a CSRF token, and still demands one to change anything', async () => {
+    const w = world();
+    const api = client(w);
+    await api.login();
+    api.dropCsrf();
+    expect((await api.call('GET', '/api/runs')).status).toBe(200);
+    expect((await api.call('POST', '/api/runs')).status).toBe(403);
+  });
 });
 
 describe('evidence', () => {
@@ -206,12 +259,10 @@ describe('evidence', () => {
     });
     expect((await api.call('GET', `/api/audit?q=CAPABILITY_INVALID`)).body.events).toHaveLength(1);
 
-    const csv = await (
-      await w.app.request(`/api/audit?run=${run.id}&verdict=block&format=csv`)
-    ).text();
+    const csv = await (await api.raw(`/api/audit?run=${run.id}&verdict=block&format=csv`)).text();
     expect(csv.split('\n')).toHaveLength(2);
     expect(csv).toContain('"update_vendor_destination","block","IntentMismatchException"');
-    const json = await (await w.app.request(`/api/audit?run=${run.id}&format=json`)).json();
+    const json = await (await api.raw(`/api/audit?run=${run.id}&format=json`)).json();
     expect(JSON.stringify(json)).not.toContain('approvedExecutionRef');
 
     const replay = (await api.call('GET', `/api/branches/${b.id}/replay`)).body;
