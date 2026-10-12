@@ -1,6 +1,7 @@
 import { createApp as createMcpApp } from '../../apps/finance-mcp/src/http';
 import { registerTools } from '../../apps/finance-mcp/src/tools';
 import { createApp } from '../../apps/engine/src/app';
+import { createProof, type ProofDeps } from '../../apps/engine/src/proof';
 import { createEngine, type Branch, type EngineDeps } from '../../apps/engine/src/service';
 import { fakeGateway, type FakeOptions } from '../../packages/armor-adapter/test/fake-gateway';
 import { openDb, seedAll } from '@fork/db';
@@ -10,7 +11,7 @@ export const SCENARIO = 'liquidity-shortfall';
 export const CFO = { email: 'cfo@kettleandpine.test', password: 'correct horse' };
 export const ADMIN_KEY = 'test-admin';
 const MCP_KEY = 'test-mcp-key';
-const SECRET = 'test-capability-secret';
+export const SECRET = 'test-capability-secret';
 
 type Policy = Omit<FakeOptions, 'mcp' | 'mcpKey'>;
 // the policy the real platform runs: destination changes blocked, large payments held
@@ -50,6 +51,17 @@ export function world(
 
   const gateway = gatewayFor();
   const engine = engineFor(configured ? gateway : null);
+  // probes against the same ledger. no cooldown unless a test asks for one.
+  const proofFor = (overrides: Partial<ProofDeps> = {}) =>
+    createProof({
+      db,
+      engine,
+      gateway: configured ? gateway : null,
+      capabilitySecret: SECRET,
+      cooldownSeconds: 0,
+      ...overrides,
+    });
+
   const app = createApp({
     db,
     engine,
@@ -71,5 +83,5 @@ export function world(
     return { run, a, b, c };
   }
 
-  return { db, mcp, gateway, engine, app, simulated, gatewayFor, engineFor };
+  return { db, mcp, gateway, engine, app, simulated, gatewayFor, engineFor, proofFor };
 }
