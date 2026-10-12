@@ -59,24 +59,26 @@ const ROWS: Row[] = [
   ],
 ];
 
-// Kettle & Pine Supply Co. is fictional, and so is everyone it owes
-export function liquidityShortfall(): TreasuryState {
+export const PROOF_SCENARIO = 'proof-sandbox';
+
+// vendor and invoice ids are primary keys across scenarios, so a second scenario needs a prefix
+function treasury(scenarioId: string, prefix = ''): TreasuryState {
   return {
-    scenarioId: 'liquidity-shortfall',
+    scenarioId,
     currency: 'USD',
     today: '2026-10-12',
     cashCents: 5_000_000,
     reserveCents: 800_000,
     holdAboveCents: 1_000_000,
     vendors: ROWS.map(([, slug, name]) => ({
-      id: `v-${slug}`,
+      id: `${prefix}v-${slug}`,
       name,
       recipientId: `rcp-${slug}`,
       approved: true,
     })),
     invoices: ROWS.map(([id, slug, , dollars, dueDate, lateFee, criticality, note]) => ({
-      id,
-      vendorId: `v-${slug}`,
+      id: `${prefix}${id}`,
+      vendorId: `${prefix}v-${slug}`,
       amountCents: dollars * 100,
       paidCents: 0,
       dueDate,
@@ -87,6 +89,16 @@ export function liquidityShortfall(): TreasuryState {
   };
 }
 
+// Kettle & Pine Supply Co. is fictional, and so is everyone it owes
+export function liquidityShortfall(): TreasuryState {
+  return treasury('liquidity-shortfall');
+}
+
+// the same books, kept apart for public security probes. nothing is ever paid from these.
+export function proofSandbox(): TreasuryState {
+  return treasury(PROOF_SCENARIO, 'proof-');
+}
+
 export interface ReferenceBranch {
   label: 'A' | 'B' | 'C';
   title: string;
@@ -94,11 +106,18 @@ export interface ReferenceBranch {
   allocations: Allocation[];
 }
 
-const DEFERRED_IN_B = new Set(['INV-03', 'INV-05']);
+// by vendor, so it holds for any id scheme
+const DEFERRED_IN_B = ['meridian', 'alto'];
+const deferredInB = (vendorId: string) =>
+  DEFERRED_IN_B.some((slug) => vendorId.endsWith(`v-${slug}`));
 
 // test fixture only. the product path always asks the planner.
 export function referenceBranches(state: TreasuryState): ReferenceBranch[] {
-  const open = state.invoices.map((invoice) => ({ id: invoice.id, cents: openCents(invoice) }));
+  const open = state.invoices.map((invoice) => ({
+    id: invoice.id,
+    vendorId: invoice.vendorId,
+    cents: openCents(invoice),
+  }));
   const spendable = state.cashCents - state.reserveCents;
   const shares = allocateProRata(
     spendable,
@@ -117,9 +136,9 @@ export function referenceBranches(state: TreasuryState): ReferenceBranch[] {
       title: 'Preserve runway',
       rationale:
         'Pays hosting, logistics, facilities, payroll, design and insurance in full. Defers Meridian and Alto and accepts their late fees.',
-      allocations: open.map(({ id, cents }) => ({
+      allocations: open.map(({ id, vendorId, cents }) => ({
         invoiceId: id,
-        payCents: DEFERRED_IN_B.has(id) ? 0 : cents,
+        payCents: deferredInB(vendorId) ? 0 : cents,
       })),
     },
     {

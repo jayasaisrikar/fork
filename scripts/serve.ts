@@ -2,12 +2,12 @@
 // they share one database file, which is why they are deployed together.
 //   PORT=8080 tsx scripts/serve.ts
 import { serve } from '@hono/node-server';
-import { openDb, seedScenario } from '@fork/db';
+import { openDb, seedAll } from '@fork/db';
 import { buildEngine } from '../apps/engine/src/main';
 import { buildMcp } from '../apps/finance-mcp/src/main';
 
 const db = openDb();
-seedScenario(db);
+seedAll(db);
 const mcp = buildMcp(process.env, db);
 const { app: api, engine } = buildEngine(process.env, db, { mcpInProcess: true });
 
