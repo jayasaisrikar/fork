@@ -1,9 +1,9 @@
 import { serve } from '@hono/node-server';
-import { openDb, seedScenario } from '@fork/db';
+import { openDb, seedAll } from '@fork/db';
 import { buildEngine } from './main';
 
 const db = openDb();
-seedScenario(db);
+seedAll(db);
 const { app, engine } = buildEngine(process.env, db);
 
 const port = Number(process.env.ENGINE_PORT ?? 8790);

@@ -3,7 +3,7 @@ import { registerTools } from '../../apps/finance-mcp/src/tools';
 import { createApp } from '../../apps/engine/src/app';
 import { createEngine, type Branch, type EngineDeps } from '../../apps/engine/src/service';
 import { fakeGateway, type FakeOptions } from '../../packages/armor-adapter/test/fake-gateway';
-import { openDb, seedScenario } from '@fork/db';
+import { openDb, seedAll } from '@fork/db';
 import { liquidityShortfall, referenceBranches } from '@fork/domain-finance';
 
 export const SCENARIO = 'liquidity-shortfall';
@@ -28,7 +28,7 @@ export function world(
   webOrigin?: string,
 ) {
   const db = openDb(':memory:');
-  seedScenario(db);
+  seedAll(db);
   const mcp = createMcpApp({
     name: 'fork-finance-mcp',
     key: MCP_KEY,
