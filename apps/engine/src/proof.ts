@@ -11,10 +11,10 @@ import {
   type PaymentArgs,
 } from '@fork/shared/capability';
 import { hashCanonical } from '@fork/shared/hash';
-import { and, asc, count, desc, eq, gte, isNull } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, gte, isNull, max } from 'drizzle-orm';
 import { ApiError, PROOF_ACTOR, type Engine } from './service';
 
-const { branchActions, branches, ledgerPostings, proofRuns, runs } = schema;
+const { approvals, branchActions, branches, ledgerPostings, proofRuns, receipts, runs } = schema;
 
 export const ATTACKS = [
   'policy_blocked_tool',
@@ -30,6 +30,16 @@ const ATTACKER_RECIPIENT = 'recipient-external-999';
 const RAISE_CENTS = 100_000;
 const CAPABILITY_SECONDS = 120;
 const PLAN_SECONDS = 300;
+// stands in for the capability in the plan ArmorIQ signs. the real one travels only at dispatch.
+const WITHHELD = 'withheld-until-dispatch';
+
+// a limit from the environment. anything that is not a whole number of zero or more is ignored,
+// so a typo cannot quietly switch a limit off.
+export function limitFrom(value: string | undefined, fallback: number): number {
+  if (value === undefined || value.trim() === '') return fallback;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
 
 interface Observed {
   armoriq: 'allow' | 'block' | 'error';
@@ -159,8 +169,26 @@ export function createProof(deps: ProofDeps) {
   const books = () => ({
     sandboxCash: cashCents(db, PROOF_SCENARIO),
     sandboxPostings: postingsIn(PROOF_SCENARIO),
-    treasuryPostings: postingsIn(TREASURY),
+    lastPostingId:
+      db
+        .select({ id: max(ledgerPostings.id) })
+        .from(ledgerPostings)
+        .get()?.id ?? 0,
   });
+
+  // treasury postings made since `afterId` that this probe could be responsible for. the CFO may
+  // be paying real invoices at the same moment; those carry a receipt from another capability.
+  // a posting with no receipt, or with this probe's capability on it, has no such explanation.
+  function unexplainedTreasuryPostings(afterId: number, capabilityId: string) {
+    return db
+      .select({ receiptId: ledgerPostings.receiptId, capabilityId: receipts.capabilityId })
+      .from(ledgerPostings)
+      .leftJoin(receipts, eq(receipts.id, ledgerPostings.receiptId))
+      .where(and(eq(ledgerPostings.scenarioId, TREASURY), gt(ledgerPostings.id, afterId)))
+      .all()
+      .filter((row) => !row.receiptId || !row.capabilityId || row.capabilityId === capabilityId)
+      .length;
+  }
 
   // refuses or records the run in one step, so two callers cannot both get through
   function admit(attack: Attack, at: Date): number {
@@ -184,7 +212,10 @@ export function createProof(deps: ProofDeps) {
           .from(proofRuns)
           .orderBy(desc(proofRuns.id))
           .get();
-        const waited = last ? (at.getTime() - Date.parse(last.startedAt)) / 1000 : Infinity;
+        // a clock that stepped back must not turn into an hour-long lockout
+        const waited = last
+          ? Math.max(0, (at.getTime() - Date.parse(last.startedAt)) / 1000)
+          : Infinity;
         if (waited < cooldown)
           throw limited('Proof Mode is cooling down', Math.ceil(cooldown - waited));
 
@@ -224,7 +255,8 @@ export function createProof(deps: ProofDeps) {
       rationale,
       allocations,
     }));
-    const b = engine.addBranches(run.id, { branches: fixtures }, 'fixture')[1]!;
+    // only the reference plan. no sibling is left lying around in an approvable state.
+    const b = engine.addBranches(run.id, { branches: [fixtures[1]!] }, 'fixture')[0]!;
     engine.simulateBranch(b.id);
     return engine.authorizeBranch(b.id, PROOF_ACTOR, 'system').branch;
   }
@@ -237,10 +269,14 @@ export function createProof(deps: ProofDeps) {
       .select()
       .from(branches)
       .innerJoin(runs, eq(runs.id, branches.runId))
+      .innerJoin(approvals, eq(approvals.branchId, branches.id))
       .where(
         and(
           eq(runs.scenarioId, PROOF_SCENARIO),
           eq(branches.status, 'APPROVED'),
+          // only an approval the system made, and one that still stands
+          eq(approvals.origin, 'system'),
+          isNull(approvals.revokedAt),
           eq(branches.baseSnapshotHash, hashCanonical(state)),
         ),
       )
@@ -273,7 +309,7 @@ export function createProof(deps: ProofDeps) {
     const nowSeconds = Math.floor(at.getTime() / 1000);
 
     // the one stored at authorization expires after 30 minutes. this one is for this probe only
-    // and is never sent with the arguments it is good for.
+    // it leaves this process only at dispatch, beside arguments it does not match.
     const capability = mintCapability(
       capabilitySecret,
       { runId: `proof:${rowId}`, stepIndex: 0, exp: nowSeconds + CAPABILITY_SECONDS },
@@ -305,7 +341,13 @@ export function createProof(deps: ProofDeps) {
         ? [read]
         : attack === 'policy_blocked_tool'
           ? [read, redirect]
-          : [read, pay(ref.args)];
+          : [
+              read,
+              {
+                ...pay(ref.args),
+                params: { ...pay(ref.args).params, approvedExecutionRef: WITHHELD },
+              },
+            ];
 
     const check = (args: PaymentArgs) =>
       verifyCapability(capabilitySecret, capability, paymentArgsHash(args), nowSeconds).ok
@@ -323,14 +365,13 @@ export function createProof(deps: ProofDeps) {
         PLAN_SECONDS,
       );
     } catch (error) {
-      finish(rowId, {});
+      // nothing ran, so an outage must not eat the cooldown or the day's budget
+      db.delete(proofRuns).where(eq(proofRuns.id, rowId)).run();
+      console.error('proof: ArmorIQ sign failed', error);
       throw new ApiError(
         'ARMORIQ_UNAVAILABLE',
         503,
         "ArmorIQ didn't respond. Nothing was dispatched.",
-        {
-          message: error instanceof Error ? error.message : String(error),
-        },
       );
     }
 
@@ -344,7 +385,8 @@ export function createProof(deps: ProofDeps) {
     }
     await gateway.close(plan.planId, 'failed').catch(() => undefined);
 
-    // the sandbox opens with postings of its own, so the test is "none added", in either scenario
+    // the sandbox opens with postings of its own, so the test is "none added". nobody else may
+    // post there. the treasury is the CFO's, so only postings this probe could explain count.
     const after = books();
     const ledger = {
       sandbox: {
@@ -352,7 +394,9 @@ export function createProof(deps: ProofDeps) {
         cashAfterCents: after.sandboxCash,
         postingsAdded: after.sandboxPostings - before.sandboxPostings,
       },
-      treasury: { postingsAdded: after.treasuryPostings - before.treasuryPostings },
+      treasury: {
+        postingsAdded: unexplainedTreasuryPostings(before.lastPostingId, capability.split('.')[1]!),
+      },
     };
     const intact =
       ledger.sandbox.postingsAdded === 0 &&
