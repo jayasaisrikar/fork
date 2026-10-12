@@ -3,7 +3,7 @@ import type { GatewayHealth } from '@fork/armor-adapter';
 import { loadState, schema, type Db } from '@fork/db';
 import { AllocationError, liquidityShortfall, referenceBranches } from '@fork/domain-finance';
 import { InvalidTransitionError } from '@fork/harness';
-import { and, desc, eq, like, lt, type SQL } from 'drizzle-orm';
+import { and, desc, eq, isNull, like, lt, notInArray, or, type SQL } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
@@ -224,6 +224,10 @@ export function createApp(deps: AppDeps) {
     if (source) filters.push(eq(auditEvents.source, source as AuditEvent['source']));
     if (type) filters.push(like(auditEvents.type, `${type}%`));
     if (before) filters.push(lt(auditEvents.id, Number(before)));
+    // the proof sandbox is not the CFO's business. events with no run stay visible.
+    const hidden = engine.sandboxRunIds();
+    if (hidden.length)
+      filters.push(or(isNull(auditEvents.runId), notInArray(auditEvents.runId, hidden))!);
 
     const needle = q?.toLowerCase();
     const matches = (event: AuditEvent) =>

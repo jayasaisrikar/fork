@@ -1,8 +1,9 @@
 import { cashCents, schema } from '@fork/db';
+import { PROOF_SCENARIO, proofSandbox, referenceBranches } from '@fork/domain-finance';
 import { InvalidTransitionError } from '@fork/harness';
 import { eq, sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import { REJECTED_BY_FORK } from '../../apps/engine/src/service';
+import { PROOF_ACTOR, REJECTED_BY_FORK } from '../../apps/engine/src/service';
 import { CFO, SCENARIO, world } from '../support/world';
 
 type World = ReturnType<typeof world>;
@@ -369,5 +370,65 @@ describe('tamper test', () => {
     await commit(w, b.id);
     expect(statusOf(w, b.id)).toBe('COMMITTED');
     expect(cashCents(w.db, SCENARIO)).toBe(1_000_000);
+  });
+});
+
+// run -> fixture branch B on the proof sandbox -> authorized by the system
+function sandboxB(w: World) {
+  const run = w.engine.createRun(PROOF_ACTOR, PROOF_SCENARIO, 'system');
+  const fixtures = referenceBranches(proofSandbox()).map(({ title, rationale, allocations }) => ({
+    title,
+    rationale,
+    allocations,
+  }));
+  const b = w.engine.addBranches(run.id, { branches: fixtures }, 'fixture')[1]!;
+  w.engine.simulateBranch(b.id);
+  w.engine.authorizeBranch(b.id, PROOF_ACTOR, 'system');
+  return { run, b };
+}
+
+describe('system-authorized branches', () => {
+  it('leave no human event in the audit trail', () => {
+    const w = world();
+    const { run } = sandboxB(w);
+    const events = w.engine.timeline(run.id);
+    expect(events.filter((event) => event.source === 'human')).toEqual([]);
+    expect(events.map((event) => event.type)).toEqual(
+      expect.arrayContaining(['run.created_by_system', 'branch.authorized_by_system']),
+    );
+    expect(events.map((event) => event.type)).not.toContain('run.created');
+    expect(events.map((event) => event.type)).not.toContain('branch.authorized');
+  });
+
+  it('record the origin on the approval', () => {
+    const w = world();
+    const { b } = sandboxB(w);
+    const approval = w.db
+      .select()
+      .from(schema.approvals)
+      .where(eq(schema.approvals.branchId, b.id))
+      .get();
+    expect(approval).toMatchObject({ origin: 'system', actor: PROOF_ACTOR });
+  });
+
+  it('can never be committed, by anyone', async () => {
+    const w = world();
+    const { b } = sandboxB(w);
+    await expect(w.engine.commitBranch(b.id, CFO.email)).rejects.toMatchObject({
+      code: 'SYSTEM_AUTHORIZED',
+      status: 409,
+    });
+    expect(cashCents(w.db, PROOF_SCENARIO)).toBe(5_000_000);
+    expect(cashCents(w.db, SCENARIO)).toBe(5_000_000);
+    expect(receiptCount(w)).toBe(0);
+    expect(w.gateway.signCount()).toBe(0);
+  });
+
+  it('stay out of the CFO run list, and human runs still read as human', () => {
+    const w = world();
+    sandboxB(w);
+    const { run } = w.simulated();
+    expect(w.engine.listRuns().map((item) => item.id)).toEqual([run.id]);
+    expect(w.engine.timeline(run.id)[0]).toMatchObject({ source: 'human', type: 'run.created' });
   });
 });
