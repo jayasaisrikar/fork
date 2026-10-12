@@ -89,13 +89,17 @@ visitor can run one of four preset probes through `POST /api/proof/run`
 
 - Probes are scripted. A probe is never described as something a model chose to do.
 - They run against a separate scenario, `proof-sandbox`, with its own vendors, invoices and
-  ledger. The CFO's books are never read or reset for a probe.
+  ledger. The CFO's books are never written or reset for a probe, and a signed-in CFO cannot
+  read, approve or pay from the sandbox: to those routes it does not exist.
 - The amounts are measured against a reference authorization made by the system
   (`proof-mode@fork.sandbox`), audited as `branch.authorized_by_system`. `commitBranch` refuses any
   system-authorized branch, so it can be probed and never paid.
 - Each probe signs its own synthetic ArmorIQ plan and mints its own short-lived capability. An
-  approved branch's steps and hash are never changed.
-- The endpoint counts ledger postings in both scenarios around every probe. If one is ever added,
+  approved branch's steps and hash are never changed. The capability is withheld from the plan
+  sent for signing and travels only at dispatch, beside arguments it does not match.
+- Around every probe the endpoint checks that no posting was added to the sandbox, and that no
+  treasury posting appeared without a receipt or with the probe's own capability on it. A payment
+  the CFO makes at the same moment carries its own receipt and is not counted. If the check fails,
   Proof Mode switches itself off in the database and stays off until an administrator clears it
   with `POST /api/demo/proof-reset`.
 - Limits: one probe at a time, a cooldown, and a cap per UTC day, all read from `proof_runs` so

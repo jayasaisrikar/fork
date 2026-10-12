@@ -529,6 +529,11 @@ export function createEngine(deps: EngineDeps) {
   function authorizeBranch(branchId: string, actor: string, origin: Origin = 'human') {
     const branch = branchOrThrow(branchId);
     const run = runOrThrow(branch.runId);
+    // the proof sandbox is for system-made reference approvals only. a person's approval there
+    // would be a payable plan on books nobody is meant to pay from.
+    if (origin === 'human' && run.scenarioId === PROOF_SCENARIO) {
+      throw new ApiError('SANDBOX_ONLY', 403, 'The proof sandbox cannot be authorized by a person');
+    }
     if (branch.status === 'SIMULATED' && isStale(branch, run.scenarioId)) {
       moveBranch(branch, 'STALE', actor);
       throw new ApiError(
@@ -1329,6 +1334,11 @@ export function createEngine(deps: EngineDeps) {
     getRun,
     listRuns,
     sandboxRunIds,
+    // true for a branch that lives in the proof sandbox. unknown ids are simply not sandbox.
+    isSandboxBranch: (branchId: string) => {
+      const branch = db.select().from(branches).where(eq(branches.id, branchId)).get();
+      return Boolean(branch && sandboxRunIds().includes(branch.runId));
+    },
     addBranches,
     proposeBranches,
     injectHostileMessage,

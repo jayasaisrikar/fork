@@ -94,6 +94,8 @@ export function createApp(deps: AppDeps) {
   // so a new one is private until someone decides otherwise.
   const PUBLIC = new Set([
     'GET /api/health',
+    // uptime monitors ask with HEAD
+    'HEAD /api/health',
     'POST /api/auth/login',
     'GET /api/auth/me',
     'POST /api/proof/run',
@@ -110,6 +112,19 @@ export function createApp(deps: AppDeps) {
     // reading needs the session. changing anything needs the CSRF token as well.
     if (c.req.method !== 'GET' && !csrfMatches(session, c.req.header(CSRF_HEADER)))
       throw new ApiError('BAD_CSRF', 403, 'Missing or wrong CSRF token');
+    return next();
+  });
+
+  // the proof sandbox belongs to the probes. to a signed-in person it does not exist, so nobody
+  // can read it, approve in it or pay from it through these routes.
+  app.use('/api/*', async (c, next) => {
+    const run = /^\/api\/runs\/(\d+)(\/|$)/.exec(c.req.path);
+    const branch = /^\/api\/branches\/([^/]+)\//.exec(c.req.path);
+    if (
+      (run && engine.sandboxRunIds().includes(Number(run[1]))) ||
+      (branch && engine.isSandboxBranch(branch[1]!))
+    )
+      throw new ApiError('NOT_FOUND', 404, 'Not found');
     return next();
   });
 

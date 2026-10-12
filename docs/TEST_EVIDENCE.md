@@ -1,12 +1,14 @@
 # Test evidence
 
-Last full run: 2026-10-11.
+Last full run: 2026-10-11. Unit and browser suites rerun on 2026-10-12 with Proof Mode; the live
+suite has not been rerun since, and its two new Proof Mode cases have never run against production
+ArmorIQ.
 
 ## Summary
 
 | Suite                | Command                                   | Result                                                                                    |
 | -------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Unit and integration | `pnpm test`                               | 196 passed, 0 failed, 7 skipped (the live suite)                                          |
+| Unit and integration | `pnpm test`                               | 208 passed, 0 failed, 7 skipped (the live suite)                                          |
 | Browser              | `pnpm test:e2e`                           | 17 passed, 0 failed                                                                       |
 | Live ArmorIQ         | `RUN_ARMORIQ_LIVE_TESTS=1 pnpm test:live` | 5 passed, 0 failed                                                                        |
 | Phase 0 spikes       | `pnpm spike`                              | S0, S1, S2, S5, S6, S8 pass. S3 documented. S4 covered by the live hold. S7 not supported |

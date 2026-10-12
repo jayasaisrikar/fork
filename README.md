@@ -25,10 +25,12 @@ Kettle & Pine Supply Co. has $50,000 in cash and $68,000 of invoices due this we
 7. **Replan.** The agent may propose a new branch. Running it needs a new authorization.
 
 **Proof.** `/proof` needs no login. It shows the recorded attack by the real inbox agent, then lets
-you run four preset probes against live ArmorIQ: a forbidden tool blocked by platform policy, an
-altered recipient and an altered amount refused by FORK's payment server, and a tool outside the
-signed plan refused inside the ArmorIQ SDK. Probes are scripted, run on a separate sandbox ledger,
-and cannot move money.
+you run four preset probes through the live ArmorIQ path. The expected results are: a forbidden
+tool blocked by platform policy, an altered recipient and an altered amount refused by FORK's
+payment server, and a tool outside the signed plan refused inside the ArmorIQ SDK. The page shows
+what actually came back and marks anything else as unexpected. Probes are scripted, run on a
+separate sandbox ledger, and cannot move money. See `docs/TEST_EVIDENCE.md` for which of these have
+been run against production ArmorIQ.
 
 ## Architecture
 
@@ -119,7 +121,7 @@ stopped) wipes the sandbox ledger.
 ## Tests
 
 ```sh
-pnpm test          # 196 unit and integration tests, no network
+pnpm test          # 208 unit and integration tests, no network
 pnpm test:e2e      # 17 browser tests (Playwright), against an in-process ArmorIQ stand-in
 RUN_ARMORIQ_LIVE_TESTS=1 pnpm test:live   # 7 tests against real ArmorIQ; needs a fresh ledger
 pnpm spike         # the Phase 0 spikes against real ArmorIQ

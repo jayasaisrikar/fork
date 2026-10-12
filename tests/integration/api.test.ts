@@ -1,5 +1,6 @@
-import { cashCents } from '@fork/db';
+import { cashCents, schema } from '@fork/db';
 import { PROOF_SCENARIO } from '@fork/domain-finance';
+import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../../apps/engine/src/app';
 import { PROOF_ACTOR } from '../../apps/engine/src/service';
@@ -372,5 +373,51 @@ describe('proof mode API', () => {
     expect(
       await api.call('POST', '/api/demo/proof-reset', undefined, { 'x-admin-key': ADMIN_KEY }),
     ).toMatchObject({ status: 200, body: { cleared: 0 } });
+  });
+
+  it('hides the sandbox from a signed-in CFO, who can neither read nor act on it', async () => {
+    const w = world();
+    const api = client(w);
+    await api.login();
+    await api.call('POST', '/api/proof/run', { attack: 'unplanned_tool' });
+    const run = w.db
+      .select()
+      .from(schema.runs)
+      .where(eq(schema.runs.scenarioId, PROOF_SCENARIO))
+      .get()!;
+    const branch = w.db
+      .select()
+      .from(schema.branches)
+      .where(eq(schema.branches.runId, run.id))
+      .get()!;
+    const before = w.engine.timeline(run.id).length;
+
+    const tries: [string, string][] = [
+      ['GET', `/api/runs/${run.id}`],
+      ['GET', `/api/runs/${run.id}/events`],
+      ['POST', `/api/runs/${run.id}/propose`],
+      ['POST', `/api/runs/${run.id}/inject`],
+      ['GET', `/api/branches/${branch.id}/replay`],
+      ['POST', `/api/branches/${branch.id}/simulate`],
+      ['POST', `/api/branches/${branch.id}/authorize`],
+      ['POST', `/api/branches/${branch.id}/commit`],
+      ['POST', `/api/branches/${branch.id}/cancel`],
+      ['POST', `/api/branches/${branch.id}/tamper-test`],
+      ['POST', `/api/branches/${branch.id}/replan`],
+    ];
+    for (const [method, path] of tries) {
+      const response = await api.call(method, path, method === 'GET' ? undefined : {});
+      expect({ path, status: response.status }).toEqual({ path, status: 404 });
+    }
+    expect(w.engine.timeline(run.id)).toHaveLength(before);
+    expect(cashCents(w.db, PROOF_SCENARIO)).toBe(5_000_000);
+    expect((await api.call('POST', '/api/proof/run', { attack: 'altered_amount' })).status).toBe(
+      200,
+    );
+  });
+
+  it('answers a HEAD on the health route, for uptime monitors', async () => {
+    const response = await world().app.request('/api/health', { method: 'HEAD' });
+    expect(response.status).toBe(200);
   });
 });

@@ -7,7 +7,7 @@ import { createModels } from './agents/models';
 import { proposeBranches } from './agents/planner';
 import { createApp } from './app';
 import { referenceBranches } from '@fork/domain-finance';
-import { createProof } from './proof';
+import { createProof, limitFrom } from './proof';
 import { createEngine, type PlannerRequest } from './service';
 
 type Env = Record<string, string | undefined>;
@@ -79,8 +79,8 @@ export function buildEngine(env: Env, db: Db, options: { mcpInProcess?: boolean 
     gateway,
     gatewayMissingReason,
     capabilitySecret,
-    cooldownSeconds: Number(env.PROOF_COOLDOWN_SECONDS ?? 20),
-    dailyLimit: Number(env.PROOF_DAILY_LIMIT ?? 200),
+    cooldownSeconds: limitFrom(env.PROOF_COOLDOWN_SECONDS, 20),
+    dailyLimit: limitFrom(env.PROOF_DAILY_LIMIT, 200),
   });
 
   const app = createApp({

@@ -1,10 +1,11 @@
 import type { Gateway } from '@fork/armor-adapter';
 import { cashCents, postEntry, schema } from '@fork/db';
-import { PROOF_SCENARIO } from '@fork/domain-finance';
+import { PROOF_SCENARIO, proofSandbox, referenceBranches } from '@fork/domain-finance';
+import { paymentArgsHash, verifyCapability, type PaymentArgs } from '@fork/shared/capability';
 import { eq, sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import { ATTACKS, type Attack } from '../../apps/engine/src/proof';
-import { CFO, SCENARIO, world } from '../support/world';
+import { ATTACKS, limitFrom, type Attack } from '../../apps/engine/src/proof';
+import { CFO, SCENARIO, SECRET, world } from '../support/world';
 
 type World = ReturnType<typeof world>;
 
@@ -332,5 +333,162 @@ describe('proof integrity', () => {
     // the sandbox books changed, so the old reference is stale and a fresh one is authorized
     await expect(proof.run('altered_amount')).resolves.toMatchObject({ integrity: 'ok' });
     expect(sandboxRuns(w)).toHaveLength(2);
+  });
+});
+
+describe('the sandbox is off limits to people', () => {
+  it('leaves no sibling branch behind for anyone to approve', async () => {
+    const w = world();
+    await w.proofFor().run('unplanned_tool');
+    const [run] = sandboxRuns(w);
+    const all = w.db.select().from(schema.branches).where(eq(schema.branches.runId, run!.id)).all();
+    expect(all.map((branch) => branch.status)).toEqual(['APPROVED']);
+  });
+
+  it('refuses a human authorization on a sandbox branch', () => {
+    const w = world();
+    const run = w.engine.createRun('someone', PROOF_SCENARIO, 'system');
+    const fixtures = referenceBranches(proofSandbox()).map(({ title, rationale, allocations }) => ({
+      title,
+      rationale,
+      allocations,
+    }));
+    const c = w.engine.addBranches(run.id, { branches: fixtures }, 'fixture')[2]!;
+    w.engine.simulateBranch(c.id);
+    expect(() => w.engine.authorizeBranch(c.id, CFO.email)).toThrow(
+      expect.objectContaining({ code: 'SANDBOX_ONLY', status: 403 }),
+    );
+    expect(w.db.select().from(schema.approvals).all()).toEqual([]);
+  });
+
+  it('measures only against an authorization the system made', async () => {
+    const w = world();
+    const proof = w.proofFor();
+    await proof.run('altered_amount');
+    // as if a person had somehow become the approver of the standing reference
+    w.db.update(schema.approvals).set({ origin: 'human' }).run();
+    await proof.run('altered_amount');
+    expect(sandboxRuns(w)).toHaveLength(2);
+  });
+});
+
+describe('review fixes', () => {
+  it('does not blame a probe for a payment the CFO made at the same moment', async () => {
+    const w = world();
+    const { b } = w.simulated();
+    w.engine.authorizeBranch(b.id, CFO.email);
+    // the CFO's own commit settles while the probe's attack call is in flight
+    const during = wrapped(w, (inner) => async (planId, step, options) => {
+      const execution = await w.engine.commitBranch(b.id, CFO.email);
+      await w.engine.settled(execution.id);
+      return inner.dispatch(planId, step, options);
+    });
+    const proof = w.proofFor({ gateway: during });
+    const result = await proof.run('altered_amount');
+    expect(cashCents(w.db, SCENARIO)).toBeLessThan(5_000_000);
+    expect(result.integrity).toBe('ok');
+    expect(result.ledger.treasury.postingsAdded).toBe(0);
+    await expect(w.proofFor().run('altered_amount')).resolves.toMatchObject({ integrity: 'ok' });
+  });
+
+  it('still fails closed on a treasury posting that no receipt explains', async () => {
+    const w = world();
+    const leak = wrapped(w, (inner) => async (planId, step, options) => {
+      postEntry(
+        w.db,
+        SCENARIO,
+        [
+          { account: 'cash', amountCents: -100 },
+          { account: 'equity', amountCents: 100 },
+        ],
+        new Date().toISOString(),
+      );
+      return inner.dispatch(planId, step, options);
+    });
+    const result = await w.proofFor({ gateway: leak }).run('altered_amount');
+    expect(result.integrity).toBe('failed');
+    expect(result.ledger.treasury.postingsAdded).toBe(2);
+    await expect(w.proofFor().run('altered_amount')).rejects.toMatchObject({
+      code: 'PROOF_DISABLED',
+    });
+  });
+
+  it('does not spend the cooldown or the daily budget when ArmorIQ fails at signing', async () => {
+    const w = world();
+    const time = clock();
+    const down = w.proofFor({
+      gateway: w.gatewayFor({ signFails: true }),
+      now: time.now,
+      cooldownSeconds: 20,
+    });
+    for (let i = 0; i < 2; i++)
+      await expect(down.run('altered_amount')).rejects.toMatchObject({
+        code: 'ARMORIQ_UNAVAILABLE',
+        status: 503,
+      });
+    expect(proofRows(w)).toEqual([]);
+    // and the upstream error text stays out of a public response
+    const refused = await down.run('altered_amount').catch((error) => error);
+    expect(refused.details).toBeUndefined();
+  });
+
+  it('never puts a usable capability in the plan it sends to ArmorIQ', async () => {
+    const w = world();
+    const inner = w.gatewayFor();
+    const sent: { action: string; params: Record<string, unknown> }[] = [];
+    const spy: Gateway = {
+      ...inner,
+      sign: (goal, steps, seconds) => {
+        sent.push(...steps);
+        return inner.sign(goal, steps, seconds);
+      },
+      dispatch: (...args) => inner.dispatch(...args),
+      close: (...args) => inner.close(...args),
+      health: () => inner.health(),
+    };
+    const proof = w.proofFor({ gateway: spy });
+    for (const attack of ATTACKS) await proof.run(attack);
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    for (const step of sent.filter((item) => item.action === 'execute_payment')) {
+      const ref = String(step.params.approvedExecutionRef);
+      const usable = verifyCapability(
+        SECRET,
+        ref,
+        paymentArgsHash(step.params as unknown as PaymentArgs),
+        nowSeconds,
+      );
+      expect(usable.ok).toBe(false);
+    }
+    expect(sent.filter((item) => item.action === 'execute_payment')).toHaveLength(2);
+  });
+
+  it('keeps the daily cap across a restart', async () => {
+    const w = world();
+    const time = clock(Date.parse('2026-10-14T12:00:00.000Z'));
+    await w.proofFor({ now: time.now, dailyLimit: 1 }).run('unplanned_tool');
+    await expect(
+      w.proofFor({ now: time.now, dailyLimit: 1 }).run('unplanned_tool'),
+    ).rejects.toMatchObject({ code: 'RATE_LIMITED', status: 429 });
+  });
+
+  it('does not lock everyone out when the clock steps back', async () => {
+    const w = world();
+    const time = clock();
+    const proof = w.proofFor({ now: time.now, cooldownSeconds: 20 });
+    await proof.run('unplanned_tool');
+    time.advance(-3600);
+    const refused = await proof.run('unplanned_tool').catch((error) => error);
+    expect(refused.details.retryAfterSeconds).toBeLessThanOrEqual(20);
+  });
+
+  it('falls back to the default when a limit in the environment is not a number', () => {
+    expect(limitFrom('abc', 20)).toBe(20);
+    expect(limitFrom('', 20)).toBe(20);
+    expect(limitFrom(undefined, 200)).toBe(200);
+    expect(limitFrom('-5', 200)).toBe(200);
+    expect(limitFrom('1.5', 200)).toBe(200);
+    expect(limitFrom('0', 20)).toBe(0);
+    expect(limitFrom('45', 20)).toBe(45);
   });
 });
