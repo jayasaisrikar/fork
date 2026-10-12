@@ -7,6 +7,7 @@ import {
   annotate,
   BranchProposalSchema,
   financeAdapter,
+  PROOF_SCENARIO,
   type Allocation,
   type BranchProposal,
   type TreasuryState,
@@ -25,7 +26,7 @@ import {
 import { LARGE_PAYMENT_TOOL, PAYMENT_TOOL } from '@fork/shared';
 import { mintCapability, paymentArgsHash, type PaymentArgs } from '@fork/shared/capability';
 import { hashCanonical } from '@fork/shared/hash';
-import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNull, ne } from 'drizzle-orm';
 
 const {
   approvals,
@@ -50,10 +51,14 @@ export const REJECTED_BY_FORK = 'rejected_by_fork';
 const TOKEN_SECONDS = 1800;
 const ATTACKER_RECIPIENT = 'recipient-external-999';
 
+export type Origin = 'human' | 'system';
+// stands behind the reference authorization that public probes are measured against
+export const PROOF_ACTOR = 'proof-mode@fork.sandbox';
+
 export class ApiError extends Error {
   constructor(
     readonly code: string,
-    readonly status: 400 | 401 | 403 | 404 | 409 | 422 | 503,
+    readonly status: 400 | 401 | 403 | 404 | 409 | 413 | 422 | 429 | 503,
     message: string,
     readonly details?: unknown,
   ) {
@@ -215,7 +220,7 @@ export function createEngine(deps: EngineDeps) {
     );
   }
 
-  function createRun(actor: string, scenarioId = 'liquidity-shortfall') {
+  function createRun(actor: string, scenarioId = 'liquidity-shortfall', origin: Origin = 'human') {
     const snapshot = takeSnapshot(scenarioId);
     const run = db
       .insert(runs)
@@ -228,12 +233,32 @@ export function createEngine(deps: EngineDeps) {
       })
       .returning()
       .get();
-    audit(run.id, 'human', 'run.created', actor, { snapshotHash: snapshot.hash });
+    // a system run must never read as something a person did
+    if (origin === 'system') {
+      audit(run.id, 'fork', 'run.created_by_system', actor, { snapshotHash: snapshot.hash });
+    } else {
+      audit(run.id, 'human', 'run.created', actor, { snapshotHash: snapshot.hash });
+    }
     return run;
   }
 
   function listRuns() {
-    return db.select().from(runs).orderBy(desc(runs.id)).limit(50).all();
+    return db
+      .select()
+      .from(runs)
+      .where(ne(runs.scenarioId, PROOF_SCENARIO))
+      .orderBy(desc(runs.id))
+      .limit(50)
+      .all();
+  }
+
+  function sandboxRunIds() {
+    return db
+      .select({ id: runs.id })
+      .from(runs)
+      .where(eq(runs.scenarioId, PROOF_SCENARIO))
+      .all()
+      .map((run) => run.id);
   }
 
   function runOrThrow(runId: number) {
@@ -492,7 +517,16 @@ export function createEngine(deps: EngineDeps) {
       : 'The stored steps no longer match the approved plan';
   }
 
-  function authorizeBranch(branchId: string, actor: string) {
+  function approvalOrigin(branchId: string): Origin | undefined {
+    return db
+      .select({ origin: approvals.origin })
+      .from(approvals)
+      .where(and(eq(approvals.branchId, branchId), isNull(approvals.revokedAt)))
+      .orderBy(desc(approvals.id))
+      .get()?.origin;
+  }
+
+  function authorizeBranch(branchId: string, actor: string, origin: Origin = 'human') {
     const branch = branchOrThrow(branchId);
     const run = runOrThrow(branch.runId);
     if (branch.status === 'SIMULATED' && isStale(branch, run.scenarioId)) {
@@ -546,15 +580,21 @@ export function createEngine(deps: EngineDeps) {
           )
           .run();
         db.insert(approvals)
-          .values({ branchId: branch.id, approvedPlanHash: hash, actor, at: at.toISOString() })
+          .values({
+            branchId: branch.id,
+            approvedPlanHash: hash,
+            actor,
+            origin,
+            at: at.toISOString(),
+          })
           .run();
       },
       { behavior: 'immediate' },
     );
     audit(
       run.id,
-      'human',
-      'branch.authorized',
+      origin === 'system' ? 'fork' : 'human',
+      origin === 'system' ? 'branch.authorized_by_system' : 'branch.authorized',
       actor,
       { branchId, approvedPlanHash: hash },
       { steps: steps.length },
@@ -655,6 +695,22 @@ export function createEngine(deps: EngineDeps) {
         { verdict: REJECTED_BY_FORK, problem },
       );
       throw new ApiError('APPROVAL_INVALID', 409, problem);
+    }
+    // no person approved this. it exists to be probed, never to be paid.
+    if (approvalOrigin(branch.id) === 'system') {
+      audit(
+        run.id,
+        'fork',
+        'security.system_branch_commit_refused',
+        actor,
+        { branchId },
+        { verdict: REJECTED_BY_FORK },
+      );
+      throw new ApiError(
+        'SYSTEM_AUTHORIZED',
+        409,
+        'This branch was authorized by the system for security probes. It can never be executed.',
+      );
     }
     if (isStale(branch, run.scenarioId)) {
       moveBranch(branch, 'STALE', actor);
@@ -1272,6 +1328,7 @@ export function createEngine(deps: EngineDeps) {
     createRun,
     getRun,
     listRuns,
+    sandboxRunIds,
     addBranches,
     proposeBranches,
     injectHostileMessage,

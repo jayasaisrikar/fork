@@ -1,5 +1,7 @@
 import { cashCents } from '@fork/db';
+import { PROOF_SCENARIO } from '@fork/domain-finance';
 import { describe, expect, it } from 'vitest';
+import { PROOF_ACTOR } from '../../apps/engine/src/service';
 import { ADMIN_KEY, CFO, SCENARIO, world } from '../support/world';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -230,5 +232,17 @@ describe('evidence', () => {
       executedCents: 2_800_000,
       ledgerCents: 2_800_000,
     });
+  });
+  it('keeps sandbox events out of the CFO audit view', async () => {
+    const w = world();
+    const api = client(w);
+    await api.login();
+    const run = w.engine.createRun(PROOF_ACTOR, PROOF_SCENARIO, 'system');
+    w.simulated();
+
+    const { body } = await api.call('GET', '/api/audit?limit=500');
+    expect(body.events.length).toBeGreaterThan(0);
+    expect(body.events.filter((event: Json) => event.runId === run.id)).toEqual([]);
+    expect(body.events.filter((event: Json) => event.actor === PROOF_ACTOR)).toEqual([]);
   });
 });
