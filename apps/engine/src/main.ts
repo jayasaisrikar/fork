@@ -7,6 +7,7 @@ import { createModels } from './agents/models';
 import { proposeBranches } from './agents/planner';
 import { createApp } from './app';
 import { referenceBranches } from '@fork/domain-finance';
+import { createProof } from './proof';
 import { createEngine, type PlannerRequest } from './service';
 
 type Env = Record<string, string | undefined>;
@@ -72,9 +73,20 @@ export function buildEngine(env: Env, db: Db, options: { mcpInProcess?: boolean 
     holdTimeoutMs: Number(env.HOLD_TIMEOUT_MS ?? 180_000),
   });
 
+  const proof = createProof({
+    db,
+    engine,
+    gateway,
+    gatewayMissingReason,
+    capabilitySecret,
+    cooldownSeconds: Number(env.PROOF_COOLDOWN_SECONDS ?? 20),
+    dailyLimit: Number(env.PROOF_DAILY_LIMIT ?? 200),
+  });
+
   const app = createApp({
     db,
     engine,
+    proof,
     cfo: { email: env.CFO_EMAIL ?? '', password: env.CFO_PASSWORD ?? '' },
     adminKey: env.DEMO_ADMIN_KEY,
     webOrigin: env.WEB_ORIGIN,

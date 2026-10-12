@@ -5,9 +5,11 @@ import { AllocationError, liquidityShortfall, referenceBranches } from '@fork/do
 import { InvalidTransitionError } from '@fork/harness';
 import { and, desc, eq, isNull, like, lt, notInArray, or, type SQL } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
+import { z } from 'zod';
 import {
   csrfMatches,
   CSRF_HEADER,
@@ -18,11 +20,13 @@ import {
   type CfoAccount,
   type Session,
 } from './auth';
+import { ATTACKS, type Proof } from './proof';
 import { ApiError, type AuditEvent, type Engine } from './service';
 
 export interface AppDeps {
   db: Db;
   engine: Engine;
+  proof: Proof;
   cfo: CfoAccount;
   adminKey?: string;
   webOrigin?: string;
@@ -51,12 +55,16 @@ export function createApp(deps: AppDeps) {
       origin: deps.webOrigin ?? 'http://localhost:3000',
       credentials: true,
       allowHeaders: ['content-type', CSRF_HEADER],
+      exposeHeaders: ['Retry-After'],
     }),
   );
 
   app.onError((error, c) => {
     const requestId = c.get('requestId');
     if (error instanceof ApiError) {
+      const retry = (error.details as { retryAfterSeconds?: number } | undefined)
+        ?.retryAfterSeconds;
+      if (error.status === 429 && retry) c.header('Retry-After', String(retry));
       return c.json(
         { code: error.code, message: error.message, details: error.details, requestId },
         error.status,
@@ -339,6 +347,36 @@ export function createApp(deps: AppDeps) {
       { branches: engine.addBranches(run.run.id, { branches: fixtures }, 'fixture') },
       201,
     );
+  });
+
+  // strict on purpose: the public can pick a preset, never write an argument
+  const ProofBody = z.strictObject({ attack: z.enum(ATTACKS) });
+  app.post(
+    '/api/proof/run',
+    bodyLimit({
+      maxSize: 1024,
+      onError: (c) =>
+        c.json(
+          {
+            code: 'BODY_TOO_LARGE',
+            message: 'The request body is too large',
+            requestId: c.get('requestId'),
+          },
+          413,
+        ),
+    }),
+    async (c) => {
+      const parsed = ProofBody.safeParse(await c.req.json().catch(() => null));
+      if (!parsed.success)
+        throw new ApiError('BAD_REQUEST', 400, `attack must be one of: ${ATTACKS.join(', ')}`);
+      return c.json(await deps.proof.run(parsed.data.attack));
+    },
+  );
+
+  // only after someone has looked into why a probe left a posting behind
+  app.post('/api/demo/proof-reset', (c) => {
+    requireAdmin(c.req.header('x-admin-key'));
+    return c.json({ cleared: deps.proof.reset() });
   });
 
   return app;

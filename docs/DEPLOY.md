@@ -25,19 +25,20 @@ cp .env.example .env    # fill it in, see below
 PORT=8790 pnpm serve
 ```
 
-| Variable                                                              | Value                                         |
-| --------------------------------------------------------------------- | --------------------------------------------- |
-| `ARMORIQ_API_KEY`                                                     | Your ArmorIQ key                              |
-| `CFO_EMAIL`                                                           | Your ArmorIQ login email                      |
-| `CFO_PASSWORD`                                                        | A password for the demo CFO                   |
-| `ARMORIQ_REQUESTER_EMAIL`                                             | `fork-agent@kettleandpine.test`               |
-| `FORK_MCP_KEY`                                                        | Same value as registered on ArmorIQ           |
-| `FORK_MCP_NAME`                                                       | Only if not registered as `fork-finance-mcp`  |
-| `MCP_CAPABILITY_SECRET`                                               | `openssl rand -hex 32`                        |
-| `DEMO_ADMIN_KEY`                                                      | `openssl rand -hex 24`                        |
-| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL_PLANNER`, `LLM_MODEL_INBOX` | Your model provider                           |
-| `WEB_ORIGIN`                                                          | The web app's URL, once you have it           |
-| `NODE_ENV`, `DATABASE_PATH`                                           | `production`, and where the ledger file lives |
+| Variable                                                              | Value                                                               |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `ARMORIQ_API_KEY`                                                     | Your ArmorIQ key                                                    |
+| `CFO_EMAIL`                                                           | Your ArmorIQ login email                                            |
+| `CFO_PASSWORD`                                                        | A password for the demo CFO                                         |
+| `ARMORIQ_REQUESTER_EMAIL`                                             | `fork-agent@kettleandpine.test`                                     |
+| `FORK_MCP_KEY`                                                        | Same value as registered on ArmorIQ                                 |
+| `FORK_MCP_NAME`                                                       | Only if not registered as `fork-finance-mcp`                        |
+| `MCP_CAPABILITY_SECRET`                                               | `openssl rand -hex 32`                                              |
+| `DEMO_ADMIN_KEY`                                                      | `openssl rand -hex 24`                                              |
+| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL_PLANNER`, `LLM_MODEL_INBOX` | Your model provider                                                 |
+| `WEB_ORIGIN`                                                          | The web app's URL, once you have it                                 |
+| `NODE_ENV`, `DATABASE_PATH`                                           | `production`, and where the ledger file lives                       |
+| `PROOF_COOLDOWN_SECONDS`, `PROOF_DAILY_LIMIT`                         | Optional. Limits on the public `/proof` probes (default 20 and 200) |
 
 Run it under a process manager (the hosted copy is a systemd unit with a memory cap) and put HTTPS
 in front. Check `https://<host>/health` answers `{"ok":true,...}` and `/api/health` shows
