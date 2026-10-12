@@ -80,9 +80,12 @@ app and the engine, nobody signed in:
 
 ## Not covered
 
-- **A matching row on platform.armoriq.ai for the Proof Mode plans.** Not checked yet: the
-  platform needs a signed-in person. Until it is, the block is evidenced by the engine's response
-  and plan ids above, not by a platform screenshot.
+- **A per-call policy-block record on platform.armoriq.ai.** Checked on 2026-10-12. All six Proof
+  Mode plans are listed on the Intent page under the ids above, with agent `forkfinance-bot` and
+  the right calls. None shows the block itself: the plan page reads "No policy fired", the Audit
+  tab is empty, and Activity holds only `plan.created` and `plan.failed`. The block is evidenced by
+  the proxy's 403 and `PolicyBlockedException` as the engine received them. See
+  [docs/proof](proof/README.md), images 09 and 10.
 - **The 503 outage path and the per-visitor limit on the deployed site.** Both pass locally. The
   first needs ArmorIQ to be down; the second would spend eleven ArmorIQ plans.
 - **Trace reconciliation against the platform.** ArmorIQ has no read API we could find, so stored

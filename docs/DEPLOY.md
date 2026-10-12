@@ -135,5 +135,6 @@ Find out why first, then clear it: `POST /api/demo/proof-reset` with the `x-admi
   proxy the visitor controls. It is the platform's own header; this was not tested.
 - `PROOF_EDGE_KEY` on Vercel Preview deployments. It is set for Production only, so a preview
   build's probes are refused by the engine.
-- A matching row on platform.armoriq.ai for the Proof Mode plans.
+- A per-call policy-block record on platform.armoriq.ai. The plans are there; the block is not
+  shown. See [TEST_EVIDENCE.md](TEST_EVIDENCE.md).
 - The Docker image and the Railway path.
