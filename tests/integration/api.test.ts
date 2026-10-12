@@ -1,6 +1,7 @@
 import { cashCents } from '@fork/db';
 import { PROOF_SCENARIO } from '@fork/domain-finance';
 import { describe, expect, it } from 'vitest';
+import { createApp } from '../../apps/engine/src/app';
 import { PROOF_ACTOR } from '../../apps/engine/src/service';
 import { ADMIN_KEY, CFO, SCENARIO, world } from '../support/world';
 
@@ -295,5 +296,81 @@ describe('evidence', () => {
     expect(body.events.length).toBeGreaterThan(0);
     expect(body.events.filter((event: Json) => event.runId === run.id)).toEqual([]);
     expect(body.events.filter((event: Json) => event.actor === PROOF_ACTOR)).toEqual([]);
+  });
+});
+
+describe('proof mode API', () => {
+  it('runs a probe for a visitor who is not signed in', async () => {
+    const w = world();
+    const { status, body } = await client(w).call('POST', '/api/proof/run', {
+      attack: 'policy_blocked_tool',
+    });
+    expect(status).toBe(200);
+    expect(body.steps[1]).toMatchObject({
+      armoriq: 'block',
+      enforcedBy: 'armoriq_policy',
+      errorClass: 'PolicyBlockedException',
+      matchedExpectation: true,
+    });
+    expect(body.ledger.sandbox.postingsAdded).toBe(0);
+    expect(cashCents(w.db, SCENARIO)).toBe(5_000_000);
+  });
+
+  it('takes one of four attacks and nothing else', async () => {
+    const api = client(world());
+    for (const body of [
+      {},
+      { attack: 'drain_everything' },
+      { attack: 'altered_amount', amountCents: 1 },
+      { attack: ['altered_amount'] },
+    ]) {
+      expect(await api.call('POST', '/api/proof/run', body)).toMatchObject({
+        status: 400,
+        body: { code: 'BAD_REQUEST' },
+      });
+    }
+    const notJson = await world().app.request('/api/proof/run', { method: 'POST', body: 'x' });
+    expect(notJson.status).toBe(400);
+  });
+
+  it('refuses a body over 1 KB', async () => {
+    const response = await client(world()).call('POST', '/api/proof/run', {
+      attack: 'altered_amount',
+      padding: 'x'.repeat(2000),
+    });
+    expect(response).toMatchObject({ status: 413, body: { code: 'BODY_TOO_LARGE' } });
+  });
+
+  it('sends Retry-After with a 429', async () => {
+    const w = world();
+    const app = createApp({
+      db: w.db,
+      engine: w.engine,
+      proof: w.proofFor({ cooldownSeconds: 20 }),
+      cfo: CFO,
+      adminKey: ADMIN_KEY,
+      armorHealth: async () => ({ configured: true, reachable: true, tools: [] }),
+    });
+    const post = () =>
+      app.request('/api/proof/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ attack: 'unplanned_tool' }),
+      });
+    expect((await post()).status).toBe(200);
+    const second = await post();
+    expect(second.status).toBe(429);
+    expect(Number(second.headers.get('retry-after'))).toBeGreaterThan(0);
+    expect(Number(second.headers.get('retry-after'))).toBeLessThanOrEqual(20);
+    expect((await second.json()).details.retryAfterSeconds).toBeGreaterThan(0);
+  });
+
+  it('clears an integrity failure only with the admin key', async () => {
+    const w = world();
+    const api = client(w);
+    expect((await api.call('POST', '/api/demo/proof-reset')).status).toBe(403);
+    expect(
+      await api.call('POST', '/api/demo/proof-reset', undefined, { 'x-admin-key': ADMIN_KEY }),
+    ).toMatchObject({ status: 200, body: { cleared: 0 } });
   });
 });

@@ -65,6 +65,7 @@ export function world(
   const app = createApp({
     db,
     engine,
+    proof: proofFor(),
     cfo: CFO,
     adminKey: ADMIN_KEY,
     webOrigin,
