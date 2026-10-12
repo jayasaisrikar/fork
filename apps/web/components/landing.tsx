@@ -73,16 +73,16 @@ function Hero({
           </p>
           <div className="mt-8 flex flex-wrap gap-2.5">
             <Link
-              href="/app"
+              href="/proof"
               className="bg-bright inline-flex h-11 items-center gap-2 rounded-[8px] px-5 text-[14px] font-extrabold text-[#133025] hover:opacity-90"
             >
-              Open the decision studio <ArrowUpRight size={16} strokeWidth={2.25} aria-hidden />
+              See the proof <ArrowUpRight size={16} strokeWidth={2.25} aria-hidden />
             </Link>
             <Link
-              href="/how"
+              href="/app"
               className="border-panel-line hover:bg-panel-raised inline-flex h-11 items-center gap-2 rounded-[8px] border px-5 text-[14px] font-extrabold"
             >
-              How the harness works <ArrowRight size={16} strokeWidth={2.25} aria-hidden />
+              Open the decision studio <ArrowRight size={16} strokeWidth={2.25} aria-hidden />
             </Link>
           </div>
           <p className="text-panel-muted mt-6 text-[12px] font-semibold">
@@ -300,8 +300,8 @@ function Evidence({ record }: { record: Recorded }) {
             payment server, which accepts only the single-use capability minted for an approved
             payment.
           </p>
-          <Link href="/app" className={`${buttonClass('primary')} mt-6`}>
-            Try it yourself <ArrowUpRight size={15} strokeWidth={2} aria-hidden />
+          <Link href="/proof" className={`${buttonClass('primary')} mt-6`}>
+            Run the proof yourself <ArrowUpRight size={15} strokeWidth={2} aria-hidden />
           </Link>
         </div>
 

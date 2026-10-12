@@ -6,8 +6,8 @@ Last full run: 2026-10-11.
 
 | Suite                | Command                                   | Result                                                                                    |
 | -------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Unit and integration | `pnpm test`                               | 154 passed, 0 failed, 5 skipped (the live suite)                                          |
-| Browser              | `pnpm test:e2e`                           | 14 passed, 0 failed                                                                       |
+| Unit and integration | `pnpm test`                               | 196 passed, 0 failed, 7 skipped (the live suite)                                          |
+| Browser              | `pnpm test:e2e`                           | 17 passed, 0 failed                                                                       |
 | Live ArmorIQ         | `RUN_ARMORIQ_LIVE_TESTS=1 pnpm test:live` | 5 passed, 0 failed                                                                        |
 | Phase 0 spikes       | `pnpm spike`                              | S0, S1, S2, S5, S6, S8 pass. S3 documented. S4 covered by the live hold. S7 not supported |
 | Real model           | `pnpm agent-check`                        | Planner: 3 valid branches first try. Inbox agent: took the bait                           |

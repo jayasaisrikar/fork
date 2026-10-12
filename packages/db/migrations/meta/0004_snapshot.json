@@ -877,9 +877,7 @@
       "indexes": {
         "receipts_idempotencyKey_unique": {
           "name": "receipts_idempotencyKey_unique",
-          "columns": [
-            "idempotencyKey"
-          ],
+          "columns": ["idempotencyKey"],
           "isUnique": true
         }
       },

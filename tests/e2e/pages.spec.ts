@@ -60,6 +60,14 @@ for (const width of [1440, 390]) {
     await expect(page.getByText(/Recorded from a real run/)).toBeVisible();
     await expect(page.getByText(/Blocked by ArmorIQ/).first()).toBeVisible();
     await expect(page.getByText('IntentMismatchException').first()).toBeVisible();
+    await expect(page.getByRole('link', { name: 'See the proof' })).toHaveAttribute(
+      'href',
+      '/proof',
+    );
+    await expect(page.getByRole('link', { name: 'Run the proof yourself' })).toHaveAttribute(
+      'href',
+      '/proof',
+    );
 
     const hrefs = await page
       .getByRole('link')
