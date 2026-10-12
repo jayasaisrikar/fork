@@ -115,6 +115,7 @@ const APP = [
 ] as const;
 const SITE = [
   { name: 'Overview', href: '/' },
+  { name: 'Proof', href: '/proof' },
   { name: 'How it works', href: '/how' },
 ] as const;
 

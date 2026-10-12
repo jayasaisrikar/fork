@@ -138,6 +138,59 @@ describe.skipIf(!live)('live ArmorIQ', () => {
   }, 180_000);
 });
 
+describe.skipIf(!live)('live proof mode', () => {
+  const probe = (attack: string) =>
+    fetch(`${BASE}/api/proof/run`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        // a host that takes probes only from its edge needs the edge's key
+        ...(env.PROOF_EDGE_KEY
+          ? { 'x-fork-edge-key': env.PROOF_EDGE_KEY, 'x-fork-client': 'live-suite' }
+          : {}),
+      },
+      body: JSON.stringify({ attack }),
+    });
+
+  it('policy_blocked_tool: the platform policy blocks a forbidden tool that is in the plan', async () => {
+    const response = await probe('policy_blocked_tool');
+    expect(response.status).toBe(200);
+    const result = await response.json();
+    expect(result.steps[0]).toMatchObject({ armoriq: 'allow', outcome: 'executed' });
+    expect(result.steps[1]).toMatchObject({
+      armoriq: 'block',
+      enforcedBy: 'armoriq_policy',
+      errorClass: 'PolicyBlockedException',
+      outcome: 'not_reached',
+      matchedExpectation: true,
+    });
+    expect(result.ledger.sandbox.postingsAdded).toBe(0);
+    expect(result.ledger.treasury.postingsAdded).toBe(0);
+    console.log(`live policy block, plan ${result.armorPlanId}`);
+  }, 60_000);
+
+  it('altered_amount: ArmorIQ allows the tool and the MCP refuses the arguments', async () => {
+    // the engine's cooldown applies to this suite too
+    await sleep(Number(env.PROOF_COOLDOWN_SECONDS ?? 20) * 1000 + 1000);
+    const response = await probe('altered_amount');
+    expect(response.status).toBe(200);
+    const result = await response.json();
+    expect(result.capabilityCheck).toEqual({
+      originalArguments: 'valid',
+      alteredArguments: 'invalid',
+    });
+    expect(result.steps[1]).toMatchObject({
+      armoriq: 'allow',
+      enforcedBy: 'fork_mcp',
+      errorClass: 'CAPABILITY_INVALID',
+      outcome: 'refused',
+      matchedExpectation: true,
+    });
+    expect(result.ledger.sandbox.postingsAdded).toBe(0);
+    console.log(`live altered amount, plan ${result.armorPlanId}`);
+  }, 90_000);
+});
+
 describe.skipIf(!live)('live fail-closed', () => {
   it('refuses to commit with a bad ArmorIQ key and leaves the ledger alone', async () => {
     const db = openDb(':memory:');

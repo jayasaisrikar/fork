@@ -1,4 +1,13 @@
-import { balanceCents, cashCents, loadState, openDb, schema, seedScenario } from '@fork/db';
+import {
+  balanceCents,
+  cashCents,
+  loadState,
+  openDb,
+  schema,
+  seedAll,
+  seedScenario,
+} from '@fork/db';
+import { PROOF_SCENARIO } from '@fork/domain-finance';
 import { LARGE_PAYMENT_TOOL, PAYMENT_TOOL, type PaymentTool } from '@fork/shared';
 import { mintCapability, paymentArgsHash } from '@fork/shared/capability';
 import { sql } from 'drizzle-orm';
@@ -207,5 +216,66 @@ describe('payment checks', () => {
 
     expect(executePayment(db, SECRET, juniper, NOW, LARGE_PAYMENT_TOOL).ok).toBe(true);
     expect(cashCents(db, SCENARIO)).toBe(3_800_000);
+  });
+});
+
+describe('the proof sandbox is read-only', () => {
+  function both() {
+    const db = openDb(':memory:');
+    seedAll(db);
+    return db;
+  }
+  const sandbox = (overrides: Partial<PaymentParams> = {}) =>
+    payment({ scenarioId: PROOF_SCENARIO, vendorId: 'proof-v-harbor', ...overrides });
+  const count = (db: ReturnType<typeof both>, table: string) =>
+    db.get<{ n: number }>(sql.raw(`select count(*) as n from ${table}`)).n;
+
+  it('refuses a completely valid payment before writing anything', () => {
+    const db = both();
+    const before = postings(db);
+    const result = executePayment(db, SECRET, sandbox(), NOW);
+    expect(result).toMatchObject({ ok: false, code: 'PROOF_SANDBOX_READ_ONLY' });
+    expect(postings(db)).toBe(before);
+    expect(count(db, 'receipts')).toBe(0);
+    expect(count(db, 'used_capabilities')).toBe(0);
+    expect(cashCents(db, PROOF_SCENARIO)).toBe(5_000_000);
+    expect(
+      loadState(db, PROOF_SCENARIO)!.invoices.every((invoice) => invoice.paidCents === 0),
+    ).toBe(true);
+  });
+
+  it('refuses the large payment tool as well', () => {
+    const db = both();
+    const large = sandbox({
+      vendorId: 'proof-v-juniper',
+      recipientId: 'rcp-juniper',
+      amount: 12000,
+      amountCents: 1_200_000,
+    });
+    expect(executePayment(db, SECRET, large, NOW, LARGE_PAYMENT_TOOL)).toMatchObject({
+      ok: false,
+      code: 'PROOF_SANDBOX_READ_ONLY',
+    });
+    expect(count(db, 'receipts')).toBe(0);
+  });
+
+  it('still calls altered arguments invalid first', () => {
+    const db = both();
+    const approved = sandbox();
+    for (const altered of [
+      { ...approved, amount: 5000, amountCents: 500_000 },
+      { ...approved, recipientId: 'recipient-external-999' },
+    ])
+      expect(executePayment(db, SECRET, altered, NOW)).toMatchObject({
+        ok: false,
+        code: 'CAPABILITY_INVALID',
+      });
+  });
+
+  it('leaves treasury payments exactly as they were', () => {
+    const db = both();
+    expect(executePayment(db, SECRET, payment(), NOW)).toMatchObject({ ok: true, replayed: false });
+    expect(cashCents(db, SCENARIO)).toBe(4_600_000);
+    expect(cashCents(db, PROOF_SCENARIO)).toBe(5_000_000);
   });
 });

@@ -1,13 +1,15 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { GatewayHealth } from '@fork/armor-adapter';
 import { loadState, schema, type Db } from '@fork/db';
 import { AllocationError, liquidityShortfall, referenceBranches } from '@fork/domain-finance';
 import { InvalidTransitionError } from '@fork/harness';
-import { and, desc, eq, like, lt, type SQL } from 'drizzle-orm';
+import { and, desc, eq, isNull, like, lt, notInArray, or, type SQL } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
+import { z } from 'zod';
 import {
   csrfMatches,
   CSRF_HEADER,
@@ -18,13 +20,17 @@ import {
   type CfoAccount,
   type Session,
 } from './auth';
+import { ATTACKS, type Proof } from './proof';
 import { ApiError, type AuditEvent, type Engine } from './service';
 
 export interface AppDeps {
   db: Db;
   engine: Engine;
+  proof: Proof;
   cfo: CfoAccount;
   adminKey?: string;
+  // shared with the web app's proxy. when set, probes are taken only from that edge.
+  edgeKey?: string;
   webOrigin?: string;
   secureCookies?: boolean;
   armorHealth: () => Promise<{ configured: boolean; reason?: string } & Partial<GatewayHealth>>;
@@ -51,12 +57,16 @@ export function createApp(deps: AppDeps) {
       origin: deps.webOrigin ?? 'http://localhost:3000',
       credentials: true,
       allowHeaders: ['content-type', CSRF_HEADER],
+      exposeHeaders: ['Retry-After'],
     }),
   );
 
   app.onError((error, c) => {
     const requestId = c.get('requestId');
     if (error instanceof ApiError) {
+      const retry = (error.details as { retryAfterSeconds?: number } | undefined)
+        ?.retryAfterSeconds;
+      if (error.status === 429 && retry) c.header('Retry-After', String(retry));
       return c.json(
         { code: error.code, message: error.message, details: error.details, requestId },
         error.status,
@@ -82,18 +92,41 @@ export function createApp(deps: AppDeps) {
     );
   });
 
-  // anything that changes state needs the CFO's session and its CSRF token
+  // public by exact method and path. a route that is not listed here needs the CFO session,
+  // so a new one is private until someone decides otherwise.
+  const PUBLIC = new Set([
+    'GET /api/health',
+    // uptime monitors ask with HEAD
+    'HEAD /api/health',
+    'POST /api/auth/login',
+    'GET /api/auth/me',
+    'POST /api/proof/run',
+  ]);
+  // these check the admin key themselves
+  const ADMIN = new Set(['POST /api/demo/fixture-branches', 'POST /api/demo/proof-reset']);
+
   app.use('/api/*', async (c, next) => {
-    const open =
-      c.req.method === 'GET' ||
-      c.req.path === '/api/auth/login' ||
-      c.req.path.startsWith('/api/demo/');
     const session = findSession(db, getCookie(c, SESSION_COOKIE), now());
     if (session) c.set('session', session);
-    if (open) return next();
+    const route = `${c.req.method} ${c.req.path}`;
+    if (PUBLIC.has(route) || ADMIN.has(route)) return next();
     if (!session) throw new ApiError('UNAUTHENTICATED', 401, 'Sign in as the CFO first');
-    if (!csrfMatches(session, c.req.header(CSRF_HEADER)))
+    // reading needs the session. changing anything needs the CSRF token as well.
+    if (c.req.method !== 'GET' && !csrfMatches(session, c.req.header(CSRF_HEADER)))
       throw new ApiError('BAD_CSRF', 403, 'Missing or wrong CSRF token');
+    return next();
+  });
+
+  // the proof sandbox belongs to the probes. to a signed-in person it does not exist, so nobody
+  // can read it, approve in it or pay from it through these routes.
+  app.use('/api/*', async (c, next) => {
+    const run = /^\/api\/runs\/(\d+)(\/|$)/.exec(c.req.path);
+    const branch = /^\/api\/branches\/([^/]+)\//.exec(c.req.path);
+    if (
+      (run && engine.sandboxRunIds().includes(Number(run[1]))) ||
+      (branch && engine.isSandboxBranch(branch[1]!))
+    )
+      throw new ApiError('NOT_FOUND', 404, 'Not found');
     return next();
   });
 
@@ -224,6 +257,10 @@ export function createApp(deps: AppDeps) {
     if (source) filters.push(eq(auditEvents.source, source as AuditEvent['source']));
     if (type) filters.push(like(auditEvents.type, `${type}%`));
     if (before) filters.push(lt(auditEvents.id, Number(before)));
+    // the proof sandbox is not the CFO's business. events with no run stay visible.
+    const hidden = engine.sandboxRunIds();
+    if (hidden.length)
+      filters.push(or(isNull(auditEvents.runId), notInArray(auditEvents.runId, hidden))!);
 
     const needle = q?.toLowerCase();
     const matches = (event: AuditEvent) =>
@@ -327,6 +364,51 @@ export function createApp(deps: AppDeps) {
       { branches: engine.addBranches(run.run.id, { branches: fixtures }, 'fixture') },
       201,
     );
+  });
+
+  // strict on purpose: the public can pick a preset, never write an argument
+  const ProofBody = z.strictObject({ attack: z.enum(ATTACKS) });
+
+  // who is asking, as the trusted edge saw it. this server is also reachable directly, where any
+  // caller can type any header, so an address counts only beside the key the edge alone holds.
+  // with a key configured, a probe that did not come through the edge is refused outright.
+  function proofClient(key: string | undefined, address: string | undefined) {
+    if (!deps.edgeKey) return undefined;
+    const given = Buffer.from(key ?? '');
+    const wanted = Buffer.from(deps.edgeKey);
+    if (given.length !== wanted.length || !timingSafeEqual(given, wanted) || !address)
+      throw new ApiError('EDGE_ONLY', 403, 'Run probes from the proof page');
+    // something to count by, not an address to keep
+    return createHash('sha256').update(`${deps.edgeKey}:${address}`).digest('hex').slice(0, 16);
+  }
+
+  app.post(
+    '/api/proof/run',
+    bodyLimit({
+      maxSize: 1024,
+      onError: (c) =>
+        c.json(
+          {
+            code: 'BODY_TOO_LARGE',
+            message: 'The request body is too large',
+            requestId: c.get('requestId'),
+          },
+          413,
+        ),
+    }),
+    async (c) => {
+      const client = proofClient(c.req.header('x-fork-edge-key'), c.req.header('x-fork-client'));
+      const parsed = ProofBody.safeParse(await c.req.json().catch(() => null));
+      if (!parsed.success)
+        throw new ApiError('BAD_REQUEST', 400, `attack must be one of: ${ATTACKS.join(', ')}`);
+      return c.json(await deps.proof.run(parsed.data.attack, client));
+    },
+  );
+
+  // only after someone has looked into why a probe left a posting behind
+  app.post('/api/demo/proof-reset', (c) => {
+    requireAdmin(c.req.header('x-admin-key'));
+    return c.json({ cleared: deps.proof.reset() });
   });
 
   return app;

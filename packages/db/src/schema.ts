@@ -129,6 +129,10 @@ export const approvals = sqliteTable('approvals', {
   branchId: text().notNull(),
   approvedPlanHash: text().notNull(),
   actor: text().notNull(),
+  // who stood behind this approval. a system approval can be probed but never executed.
+  origin: text({ enum: ['human', 'system'] })
+    .notNull()
+    .default('human'),
   at: text().notNull(),
   revokedAt: text(),
 });
@@ -181,4 +185,18 @@ export const auditEvents = sqliteTable('audit_events', {
   type: text().notNull(),
   refs: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
   payload: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+});
+
+// one row per public proof probe. the cooldown, the daily cap and the fail-closed switch read it.
+export const proofRuns = sqliteTable('proof_runs', {
+  id: integer().primaryKey({ autoIncrement: true }),
+  attack: text().notNull(),
+  // a short hash of the caller as the trusted edge saw it. null when there is no trusted edge.
+  client: text(),
+  startedAt: text().notNull(),
+  finishedAt: text(),
+  result: text({ mode: 'json' }).$type<unknown>(),
+  // set when a probe left a ledger posting behind. proof mode stays off until an admin clears it.
+  integrityFailure: integer({ mode: 'boolean' }).notNull().default(false),
+  clearedAt: text(),
 });

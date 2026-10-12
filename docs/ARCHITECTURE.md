@@ -67,18 +67,55 @@ Then it writes balanced postings, applies the payment to the vendor's invoices, 
 
 ## Threat model
 
-| Threat                                   | Mitigation                                                                                                                                                              | What remains                                                         |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Prompt injection through the inbox       | Messages are data and never change vendor records. The agent's tools go through ArmorIQ; a tool outside the plan is refused                                             | The model may still try. That is expected and is what the demo shows |
-| The agent alters arguments               | ArmorIQ does not bind arguments (spike S3). The MCP's single-use capability is tied to the hash of the approved arguments, and the recipient must be the registered one | Depends on `MCP_CAPABILITY_SECRET` staying secret                    |
-| Calling the MCP directly, around ArmorIQ | The MCP key, plus the capability, which only the engine can mint                                                                                                        | A leaked key and secret together. Rotate both                        |
-| A stale authorization                    | The books are hashed. A commit is refused as `STALE` if they changed since the snapshot                                                                                 | None known                                                           |
-| Replay or double payment                 | Idempotency keys, single-use capabilities, `BEGIN IMMEDIATE`                                                                                                            | None known                                                           |
-| Editing an approved branch               | The stored steps are re-hashed before signing and before every payment                                                                                                  | None known                                                           |
-| A forged CFO                             | Server session in an httpOnly cookie, CSRF token on every state change, no client-side role                                                                             | Demo authentication only: one account, password from the environment |
-| Token expiry                             | A token is re-minted only for an unchanged approved plan                                                                                                                | None known                                                           |
-| ArmorIQ unreachable                      | Fail closed: commit refuses to start and nothing is paid                                                                                                                | The demo cannot run while ArmorIQ is down                            |
-| A hold approved by the requester         | ArmorIQ refuses self-approval. The agent files the request, a person approves it                                                                                        | The requester identity is a config value, not a verified account     |
+| Threat                                      | Mitigation                                                                                                                                                              | What remains                                                         |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Prompt injection through the inbox          | Messages are data and never change vendor records. The agent's tools go through ArmorIQ; a tool outside the plan is refused                                             | The model may still try. That is expected and is what the demo shows |
+| The agent alters arguments                  | ArmorIQ does not bind arguments (spike S3). The MCP's single-use capability is tied to the hash of the approved arguments, and the recipient must be the registered one | Depends on `MCP_CAPABILITY_SECRET` staying secret                    |
+| Calling the MCP directly, around ArmorIQ    | The MCP key, plus the capability, which only the engine can mint                                                                                                        | A leaked key and secret together. Rotate both                        |
+| A stale authorization                       | The books are hashed. A commit is refused as `STALE` if they changed since the snapshot                                                                                 | None known                                                           |
+| Replay or double payment                    | Idempotency keys, single-use capabilities, `BEGIN IMMEDIATE`                                                                                                            | None known                                                           |
+| Editing an approved branch                  | The stored steps are re-hashed before signing and before every payment                                                                                                  | None known                                                           |
+| A forged CFO                                | Server session in an httpOnly cookie, CSRF token on every state change, no client-side role                                                                             | Demo authentication only: one account, password from the environment |
+| Token expiry                                | A token is re-minted only for an unchanged approved plan                                                                                                                | None known                                                           |
+| ArmorIQ unreachable                         | Fail closed: commit refuses to start and nothing is paid                                                                                                                | The demo cannot run while ArmorIQ is down                            |
+| A hold approved by the requester            | ArmorIQ refuses self-approval. The agent files the request, a person approves it                                                                                        | The requester identity is a config value, not a verified account     |
+| A public visitor abusing the proof endpoint | Four presets and nothing else, a 1 KB body cap, a cooldown, a daily cap, one probe at a time. No preset can carry a capability that matches its arguments               | It spends ArmorIQ quota up to the daily cap                          |
+
+## Proof Mode
+
+`/proof` is public. Its default view is the recorded run of the real inbox agent. Below that, a
+visitor can run one of four preset probes through `POST /api/proof/run`
+(`apps/engine/src/proof.ts`).
+
+- Probes are scripted. A probe is never described as something a model chose to do.
+- They run against a separate scenario, `proof-sandbox`, with its own vendors, invoices and
+  ledger. The CFO's books are never written or reset for a probe, and a signed-in CFO cannot
+  read, approve or pay from the sandbox: to those routes it does not exist.
+- The amounts are measured against a reference authorization made by the system
+  (`proof-mode@fork.sandbox`), audited as `branch.authorized_by_system`. `commitBranch` refuses any
+  system-authorized branch, so it can be probed and never paid.
+- Each probe signs its own synthetic ArmorIQ plan and mints its own short-lived capability. An
+  approved branch's steps and hash are never changed. The capability is withheld from the plan
+  sent for signing and travels only at dispatch, beside arguments it does not match.
+- Around every probe the endpoint checks that no posting was added to the sandbox, and that no
+  treasury posting appeared without a receipt or with the probe's own capability on it. A payment
+  the CFO makes at the same moment carries its own receipt and is not counted. If the check fails,
+  Proof Mode switches itself off in the database and stays off until an administrator clears it
+  with `POST /api/demo/proof-reset`.
+- The payment server itself refuses to pay from `proof-sandbox`, with `PROOF_SANDBOX_READ_ONLY`,
+  even for a capability that matches its arguments exactly. The capability is checked first, so
+  an altered payment still reads as `CAPABILITY_INVALID`.
+- An ArmorIQ outage is reported as an outage (503), never as a block. If the governed read cannot
+  be verified the attempt is not sent. A refusal that does not prove the tool never ran is shown as
+  "could not be established".
+- Limits: one probe at a time, a cooldown, and a cap per UTC day, all read from `proof_runs` so
+  they survive a restart. With `PROOF_EDGE_KEY` set, the engine takes probes only through the web
+  app's proxy and also limits each visitor per hour, by a hash of the address the proxy saw. It
+  never takes an address from a caller that does not hold the key.
+
+Only four routes are public, by exact method and path: `GET /api/health`,
+`POST /api/auth/login`, `GET /api/auth/me`, `POST /api/proof/run`. Everything else needs the CFO
+session, reads included.
 
 ## Hosting
 

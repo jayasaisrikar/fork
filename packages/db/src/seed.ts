@@ -1,11 +1,15 @@
-import { liquidityShortfall, type TreasuryState } from '@fork/domain-finance';
+import { liquidityShortfall, proofSandbox, type TreasuryState } from '@fork/domain-finance';
 import { eq } from 'drizzle-orm';
 import type { Db } from './client';
 import { postEntry } from './ledger';
 import { invoices, scenarios, vendors } from './schema';
 
 // safe to run twice: a scenario that already exists is left alone
-export function seedScenario(db: Db, state: TreasuryState = liquidityShortfall()): boolean {
+export function seedScenario(
+  db: Db,
+  state: TreasuryState = liquidityShortfall(),
+  name = 'Liquidity Shortfall',
+): boolean {
   return db.transaction(
     (tx) => {
       const existing = tx.select().from(scenarios).where(eq(scenarios.id, state.scenarioId)).get();
@@ -14,7 +18,7 @@ export function seedScenario(db: Db, state: TreasuryState = liquidityShortfall()
       tx.insert(scenarios)
         .values({
           id: state.scenarioId,
-          name: 'Liquidity Shortfall',
+          name,
           currency: state.currency,
           today: state.today,
           reserveCents: state.reserveCents,
@@ -60,4 +64,10 @@ export function seedScenario(db: Db, state: TreasuryState = liquidityShortfall()
     },
     { behavior: 'immediate' },
   );
+}
+
+// what every entry point seeds on boot: the CFO's books and the separate proof sandbox
+export function seedAll(db: Db): void {
+  seedScenario(db);
+  seedScenario(db, proofSandbox(), 'Proof sandbox');
 }

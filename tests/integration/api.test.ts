@@ -1,5 +1,9 @@
-import { cashCents } from '@fork/db';
+import { cashCents, schema } from '@fork/db';
+import { PROOF_SCENARIO } from '@fork/domain-finance';
+import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
+import { createApp } from '../../apps/engine/src/app';
+import { PROOF_ACTOR } from '../../apps/engine/src/service';
 import { ADMIN_KEY, CFO, SCENARIO, world } from '../support/world';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,7 +40,10 @@ function client(w: ReturnType<typeof world>) {
     return response;
   }
 
-  return { call, login, dropCsrf: () => (csrf = '') };
+  // the raw response, for downloads that are not JSON
+  const raw = (path: string) => w.app.request(path, { headers: { cookie } });
+
+  return { call, login, raw, dropCsrf: () => (csrf = '') };
 }
 
 describe('engine API', () => {
@@ -132,9 +139,17 @@ describe('engine API', () => {
     const w = world();
     const { run, b } = w.simulated();
     w.engine.authorizeBranch(b.id, CFO.email);
+    const signedIn = await w.app.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(CFO),
+    });
+    const cookie = (signedIn.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
 
     async function read(headers: Record<string, string>, wanted: number) {
-      const response = await w.app.request(`/api/runs/${run.id}/events`, { headers });
+      const response = await w.app.request(`/api/runs/${run.id}/events`, {
+        headers: { cookie, ...headers },
+      });
       const reader = response.body!.getReader();
       let text = '';
       while ((text.match(/^id: /gm) ?? []).length < wanted) {
@@ -172,6 +187,48 @@ describe('engine API', () => {
     expect((await api.call('GET', '/api/health')).body.armoriqConfigured).toBe(false);
     expect(cashCents(w.db, SCENARIO)).toBe(5_000_000);
   });
+  it('keeps every route private unless it is on the public list', async () => {
+    const w = world();
+    const open = new Set([
+      'GET /api/health',
+      'POST /api/auth/login',
+      'GET /api/auth/me',
+      'POST /api/proof/run',
+    ]);
+    const admin = new Set(['POST /api/demo/fixture-branches', 'POST /api/demo/proof-reset']);
+    const routes = w.app.routes.filter(
+      (route) =>
+        route.path.startsWith('/api/') && !route.path.includes('*') && route.method !== 'ALL',
+    );
+    expect(routes.length).toBeGreaterThan(15);
+
+    for (const { method, path } of routes) {
+      const key = `${method} ${path}`;
+      const response = await w.app.request(path.replace(/:\w+/g, '1'), {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: method === 'GET' ? undefined : '{}',
+      });
+      const body = (await response.json().catch(() => ({}))) as Json;
+      if (open.has(key)) expect(body.code, key).not.toBe('UNAUTHENTICATED');
+      else if (admin.has(key)) expect(response.status, key).toBe(403);
+      else
+        expect({ key, status: response.status, code: body.code }).toEqual({
+          key,
+          status: 401,
+          code: 'UNAUTHENTICATED',
+        });
+    }
+  });
+
+  it('lets a signed-in CFO read without a CSRF token, and still demands one to change anything', async () => {
+    const w = world();
+    const api = client(w);
+    await api.login();
+    api.dropCsrf();
+    expect((await api.call('GET', '/api/runs')).status).toBe(200);
+    expect((await api.call('POST', '/api/runs')).status).toBe(403);
+  });
 });
 
 describe('evidence', () => {
@@ -204,12 +261,10 @@ describe('evidence', () => {
     });
     expect((await api.call('GET', `/api/audit?q=CAPABILITY_INVALID`)).body.events).toHaveLength(1);
 
-    const csv = await (
-      await w.app.request(`/api/audit?run=${run.id}&verdict=block&format=csv`)
-    ).text();
+    const csv = await (await api.raw(`/api/audit?run=${run.id}&verdict=block&format=csv`)).text();
     expect(csv.split('\n')).toHaveLength(2);
     expect(csv).toContain('"update_vendor_destination","block","IntentMismatchException"');
-    const json = await (await w.app.request(`/api/audit?run=${run.id}&format=json`)).json();
+    const json = await (await api.raw(`/api/audit?run=${run.id}&format=json`)).json();
     expect(JSON.stringify(json)).not.toContain('approvedExecutionRef');
 
     const replay = (await api.call('GET', `/api/branches/${b.id}/replay`)).body;
@@ -230,5 +285,181 @@ describe('evidence', () => {
       executedCents: 2_800_000,
       ledgerCents: 2_800_000,
     });
+  });
+  it('keeps sandbox events out of the CFO audit view', async () => {
+    const w = world();
+    const api = client(w);
+    await api.login();
+    const run = w.engine.createRun(PROOF_ACTOR, PROOF_SCENARIO, 'system');
+    w.simulated();
+
+    const { body } = await api.call('GET', '/api/audit?limit=500');
+    expect(body.events.length).toBeGreaterThan(0);
+    expect(body.events.filter((event: Json) => event.runId === run.id)).toEqual([]);
+    expect(body.events.filter((event: Json) => event.actor === PROOF_ACTOR)).toEqual([]);
+  });
+});
+
+describe('proof mode API', () => {
+  it('runs a probe for a visitor who is not signed in', async () => {
+    const w = world();
+    const { status, body } = await client(w).call('POST', '/api/proof/run', {
+      attack: 'policy_blocked_tool',
+    });
+    expect(status).toBe(200);
+    expect(body.steps[1]).toMatchObject({
+      armoriq: 'block',
+      enforcedBy: 'armoriq_policy',
+      errorClass: 'PolicyBlockedException',
+      matchedExpectation: true,
+    });
+    expect(body.ledger.sandbox.postingsAdded).toBe(0);
+    expect(cashCents(w.db, SCENARIO)).toBe(5_000_000);
+  });
+
+  it('takes one of four attacks and nothing else', async () => {
+    const api = client(world());
+    for (const body of [
+      {},
+      { attack: 'drain_everything' },
+      { attack: 'altered_amount', amountCents: 1 },
+      { attack: ['altered_amount'] },
+    ]) {
+      expect(await api.call('POST', '/api/proof/run', body)).toMatchObject({
+        status: 400,
+        body: { code: 'BAD_REQUEST' },
+      });
+    }
+    const notJson = await world().app.request('/api/proof/run', { method: 'POST', body: 'x' });
+    expect(notJson.status).toBe(400);
+  });
+
+  it('refuses a body over 1 KB', async () => {
+    const response = await client(world()).call('POST', '/api/proof/run', {
+      attack: 'altered_amount',
+      padding: 'x'.repeat(2000),
+    });
+    expect(response).toMatchObject({ status: 413, body: { code: 'BODY_TOO_LARGE' } });
+  });
+
+  it('sends Retry-After with a 429', async () => {
+    const w = world();
+    const app = createApp({
+      db: w.db,
+      engine: w.engine,
+      proof: w.proofFor({ cooldownSeconds: 20 }),
+      cfo: CFO,
+      adminKey: ADMIN_KEY,
+      armorHealth: async () => ({ configured: true, reachable: true, tools: [] }),
+    });
+    const post = () =>
+      app.request('/api/proof/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ attack: 'unplanned_tool' }),
+      });
+    expect((await post()).status).toBe(200);
+    const second = await post();
+    expect(second.status).toBe(429);
+    expect(Number(second.headers.get('retry-after'))).toBeGreaterThan(0);
+    expect(Number(second.headers.get('retry-after'))).toBeLessThanOrEqual(20);
+    expect((await second.json()).details.retryAfterSeconds).toBeGreaterThan(0);
+  });
+
+  it('clears an integrity failure only with the admin key', async () => {
+    const w = world();
+    const api = client(w);
+    expect((await api.call('POST', '/api/demo/proof-reset')).status).toBe(403);
+    expect(
+      await api.call('POST', '/api/demo/proof-reset', undefined, { 'x-admin-key': ADMIN_KEY }),
+    ).toMatchObject({ status: 200, body: { cleared: 0 } });
+  });
+
+  it('hides the sandbox from a signed-in CFO, who can neither read nor act on it', async () => {
+    const w = world();
+    const api = client(w);
+    await api.login();
+    await api.call('POST', '/api/proof/run', { attack: 'unplanned_tool' });
+    const run = w.db
+      .select()
+      .from(schema.runs)
+      .where(eq(schema.runs.scenarioId, PROOF_SCENARIO))
+      .get()!;
+    const branch = w.db
+      .select()
+      .from(schema.branches)
+      .where(eq(schema.branches.runId, run.id))
+      .get()!;
+    const before = w.engine.timeline(run.id).length;
+
+    const tries: [string, string][] = [
+      ['GET', `/api/runs/${run.id}`],
+      ['GET', `/api/runs/${run.id}/events`],
+      ['POST', `/api/runs/${run.id}/propose`],
+      ['POST', `/api/runs/${run.id}/inject`],
+      ['GET', `/api/branches/${branch.id}/replay`],
+      ['POST', `/api/branches/${branch.id}/simulate`],
+      ['POST', `/api/branches/${branch.id}/authorize`],
+      ['POST', `/api/branches/${branch.id}/commit`],
+      ['POST', `/api/branches/${branch.id}/cancel`],
+      ['POST', `/api/branches/${branch.id}/tamper-test`],
+      ['POST', `/api/branches/${branch.id}/replan`],
+    ];
+    for (const [method, path] of tries) {
+      const response = await api.call(method, path, method === 'GET' ? undefined : {});
+      expect({ path, status: response.status }).toEqual({ path, status: 404 });
+    }
+    expect(w.engine.timeline(run.id)).toHaveLength(before);
+    expect(cashCents(w.db, PROOF_SCENARIO)).toBe(5_000_000);
+    expect((await api.call('POST', '/api/proof/run', { attack: 'altered_amount' })).status).toBe(
+      200,
+    );
+  });
+
+  it('answers a HEAD on the health route, for uptime monitors', async () => {
+    const response = await world().app.request('/api/health', { method: 'HEAD' });
+    expect(response.status).toBe(200);
+  });
+
+  it('with an edge key set, takes probes only from the edge and never trusts a bare client header', async () => {
+    const w = world({}, true, {}, undefined, 'edge-secret');
+    const post = (headers: Record<string, string>) =>
+      w.app.request('/api/proof/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify({ attack: 'unplanned_tool' }),
+      });
+
+    const untrusted: Record<string, string>[] = [
+      {},
+      { 'x-fork-client': '203.0.113.9' },
+      { 'x-fork-edge-key': 'wrong', 'x-fork-client': '203.0.113.9' },
+      { 'x-forwarded-for': '203.0.113.9' },
+    ];
+    for (const headers of untrusted) {
+      const refused = await post(headers);
+      expect(refused.status).toBe(403);
+      expect((await refused.json()).code).toBe('EDGE_ONLY');
+    }
+    expect(w.db.select().from(schema.proofRuns).all()).toEqual([]);
+
+    expect(
+      (await post({ 'x-fork-edge-key': 'edge-secret', 'x-fork-client': '203.0.113.9' })).status,
+    ).toBe(200);
+    const [row] = w.db.select().from(schema.proofRuns).all();
+    // an identity to count by, not an address to keep
+    expect(row!.client).toMatch(/^[0-9a-f]{16}$/);
+    expect(JSON.stringify(row)).not.toContain('203.0.113.9');
+  });
+
+  it('without an edge key, ignores client headers and applies the shared limits only', async () => {
+    const w = world();
+    const response = await w.app.request('/api/proof/run', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-fork-client': '203.0.113.9' },
+      body: JSON.stringify({ attack: 'unplanned_tool' }),
+    });
+    expect(response.status).toBe(200);
+    expect(w.db.select().from(schema.proofRuns).all()[0]!.client).toBeNull();
   });
 });

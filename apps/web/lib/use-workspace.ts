@@ -47,7 +47,8 @@ export function useWorkspace() {
         const me = await api<{ email: string | null; csrfToken?: string }>('GET', '/api/auth/me');
         if (me.csrfToken) setCsrf(me.csrfToken);
         setEmail(me.email);
-        await refresh();
+        // run history and the books are private now. sign-in fetches them.
+        if (me.email) await refresh();
       } catch (error) {
         setEmail(null);
         setNotice({ kind: 'error', text: error instanceof Error ? error.message : String(error) });

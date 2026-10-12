@@ -7,6 +7,7 @@ import { createModels } from './agents/models';
 import { proposeBranches } from './agents/planner';
 import { createApp } from './app';
 import { referenceBranches } from '@fork/domain-finance';
+import { createProof, limitFrom } from './proof';
 import { createEngine, type PlannerRequest } from './service';
 
 type Env = Record<string, string | undefined>;
@@ -72,11 +73,24 @@ export function buildEngine(env: Env, db: Db, options: { mcpInProcess?: boolean 
     holdTimeoutMs: Number(env.HOLD_TIMEOUT_MS ?? 180_000),
   });
 
+  const proof = createProof({
+    db,
+    engine,
+    gateway,
+    gatewayMissingReason,
+    capabilitySecret,
+    cooldownSeconds: limitFrom(env.PROOF_COOLDOWN_SECONDS, 20),
+    dailyLimit: limitFrom(env.PROOF_DAILY_LIMIT, 200),
+    clientHourlyLimit: limitFrom(env.PROOF_CLIENT_HOURLY_LIMIT, 10),
+  });
+
   const app = createApp({
     db,
     engine,
+    proof,
     cfo: { email: env.CFO_EMAIL ?? '', password: env.CFO_PASSWORD ?? '' },
     adminKey: env.DEMO_ADMIN_KEY,
+    edgeKey: env.PROOF_EDGE_KEY || undefined,
     webOrigin: env.WEB_ORIGIN,
     secureCookies: env.NODE_ENV === 'production',
     // undefined when the MCP is served from this same process
