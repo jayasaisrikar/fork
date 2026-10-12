@@ -27,6 +27,7 @@ export function world(
   configured = true,
   agents: Pick<EngineDeps, 'planner' | 'inbox' | 'plannerSource'> = {},
   webOrigin?: string,
+  edgeKey?: string,
 ) {
   const db = openDb(':memory:');
   seedAll(db);
@@ -68,6 +69,7 @@ export function world(
     proof: proofFor(),
     cfo: CFO,
     adminKey: ADMIN_KEY,
+    edgeKey,
     webOrigin,
     armorHealth: async () => ({ configured, reachable: configured, tools: [] }),
   });

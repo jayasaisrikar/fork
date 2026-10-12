@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { cashCents, postEntry, schema, type Db } from '@fork/db';
+import { PROOF_SCENARIO } from '@fork/domain-finance';
 import { LARGE_PAYMENT_TOOL, PAYMENT_TOOL, type PaymentTool } from '@fork/shared';
 import { paymentArgsHash, verifyCapability } from '@fork/shared/capability';
 import { and, eq } from 'drizzle-orm';
@@ -26,6 +27,7 @@ export type DenyCode =
   | 'CAPABILITY_INVALID'
   | 'CAPABILITY_EXPIRED'
   | 'CAPABILITY_USED'
+  | 'PROOF_SANDBOX_READ_ONLY'
   | 'VENDOR_NOT_APPROVED'
   | 'RECIPIENT_MISMATCH'
   | 'AMOUNT_MISMATCH'
@@ -59,6 +61,16 @@ export function executePayment(
         return capability.reason === 'expired'
           ? deny('CAPABILITY_EXPIRED', 'The execution capability has expired')
           : deny('CAPABILITY_INVALID', 'The execution capability does not match this payment');
+      }
+
+      // the proof sandbox is never paid from, even with a capability that is good for these exact
+      // arguments. this comes after the capability check so an altered payment still reads as
+      // CAPABILITY_INVALID, and before anything is looked up or written.
+      if (params.scenarioId === PROOF_SCENARIO) {
+        return deny(
+          'PROOF_SANDBOX_READ_ONLY',
+          'The proof sandbox is read-only. Nothing is paid from it.',
+        );
       }
 
       const byKey = tx

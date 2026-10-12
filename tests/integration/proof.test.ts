@@ -252,7 +252,11 @@ describe('proof limits', () => {
     });
     // the same instance both times, so a stuck lock would show as a 429
     const proof = w.proofFor({ gateway: flaky });
-    await expect(proof.run('altered_amount')).rejects.toThrow('simulated crash');
+    const refused = await proof.run('altered_amount').catch((error) => error);
+    expect(refused).toMatchObject({ code: 'ARMORIQ_UNAVAILABLE', status: 503 });
+    // the raw error stays on the server
+    expect(JSON.stringify(refused)).not.toContain('simulated crash');
+    expect(refused.details).toBeUndefined();
     expect(postings(w, PROOF_SCENARIO)).toBe(3);
     await expect(proof.run('altered_amount')).resolves.toMatchObject({ integrity: 'ok' });
   });
@@ -490,5 +494,121 @@ describe('review fixes', () => {
     expect(limitFrom('1.5', 200)).toBe(200);
     expect(limitFrom('0', 20)).toBe(0);
     expect(limitFrom('45', 20)).toBe(45);
+  });
+});
+
+describe('outages are not security results', () => {
+  const failing = {
+    verdict: 'error' as const,
+    errorClass: 'TypeError',
+    message: 'fetch failed',
+    latencyMs: 1,
+  };
+
+  it('answers 503 when the attack call hits an infrastructure error, and spends nothing', async () => {
+    const w = world();
+    const time = clock();
+    const down = wrapped(w, () => async () => failing);
+    const proof = w.proofFor({ gateway: down, now: time.now, cooldownSeconds: 20 });
+    for (let i = 0; i < 2; i++) {
+      const refused = await proof.run('policy_blocked_tool').catch((error) => error);
+      expect(refused).toMatchObject({ code: 'ARMORIQ_UNAVAILABLE', status: 503 });
+      expect(JSON.stringify(refused)).not.toContain('fetch failed');
+    }
+    expect(proofRows(w)).toEqual([]);
+  });
+
+  it('does not go on to the attack when the governed read cannot be verified', async () => {
+    const w = world();
+    const inner = w.gatewayFor();
+    const seen: string[] = [];
+    const readDown: Gateway = {
+      sign: (...args) => inner.sign(...args),
+      close: (...args) => inner.close(...args),
+      health: () => inner.health(),
+      dispatch: async (_planId, step) => {
+        seen.push(step.action);
+        return failing;
+      },
+    };
+    await expect(w.proofFor({ gateway: readDown }).run('altered_amount')).rejects.toMatchObject({
+      code: 'ARMORIQ_UNAVAILABLE',
+      status: 503,
+    });
+    expect(seen).toEqual(['get_treasury_balance']);
+  });
+
+  it('stops after a read that was not allowed, and reports it as unexpected', async () => {
+    const w = world();
+    const gateway = w.gatewayFor({ block: ['get_treasury_balance', 'update_vendor_destination'] });
+    const result = await w.proofFor({ gateway }).run('policy_blocked_tool');
+    expect(result.steps).toEqual([
+      expect.objectContaining({
+        tool: 'get_treasury_balance',
+        armoriq: 'block',
+        matchedExpectation: false,
+      }),
+    ]);
+    expect(gateway.dispatched.map((step) => step.action)).toEqual(['get_treasury_balance']);
+  });
+
+  it('says unknown, not blocked, when a refusal does not prove the tool never ran', async () => {
+    const w = world();
+    // a hold is neither an allow nor a block
+    const gateway = w.gatewayFor({ block: [], hold: ['update_vendor_destination'] });
+    const result = await w.proofFor({ gateway }).run('policy_blocked_tool');
+    expect(result.steps[1]).toMatchObject({
+      armoriq: 'error',
+      enforcedBy: null,
+      outcome: 'unknown',
+      matchedExpectation: false,
+    });
+  });
+
+  it('keeps the integrity switch armed through an outage', async () => {
+    const w = world();
+    const leakThenDie = wrapped(w, () => async () => {
+      postEntry(
+        w.db,
+        PROOF_SCENARIO,
+        [
+          { account: 'cash', amountCents: -100 },
+          { account: 'equity', amountCents: 100 },
+        ],
+        new Date().toISOString(),
+      );
+      throw new Error('socket hang up');
+    });
+    await expect(w.proofFor({ gateway: leakThenDie }).run('altered_amount')).rejects.toMatchObject({
+      status: 503,
+    });
+    await expect(w.proofFor().run('altered_amount')).rejects.toMatchObject({
+      code: 'PROOF_DISABLED',
+    });
+  });
+});
+
+describe('per-client throttle', () => {
+  it('limits one client without touching another, or a caller with no identity', async () => {
+    const w = world();
+    const time = clock();
+    const proof = w.proofFor({ now: time.now, clientHourlyLimit: 2 });
+    await proof.run('unplanned_tool', 'client-a');
+    await proof.run('unplanned_tool', 'client-a');
+    const refused = await proof.run('unplanned_tool', 'client-a').catch((error) => error);
+    expect(refused).toMatchObject({ code: 'RATE_LIMITED', status: 429 });
+    expect(refused.details.retryAfterSeconds).toBeGreaterThan(0);
+    expect(refused.details.retryAfterSeconds).toBeLessThanOrEqual(3600);
+    expect(proofRows(w)).toHaveLength(2);
+
+    await expect(proof.run('unplanned_tool', 'client-b')).resolves.toMatchObject({
+      integrity: 'ok',
+    });
+    await expect(proof.run('unplanned_tool')).resolves.toMatchObject({ integrity: 'ok' });
+
+    time.advance(3601);
+    await expect(proof.run('unplanned_tool', 'client-a')).resolves.toMatchObject({
+      integrity: 'ok',
+    });
   });
 });

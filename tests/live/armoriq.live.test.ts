@@ -142,7 +142,13 @@ describe.skipIf(!live)('live proof mode', () => {
   const probe = (attack: string) =>
     fetch(`${BASE}/api/proof/run`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        // a host that takes probes only from its edge needs the edge's key
+        ...(env.PROOF_EDGE_KEY
+          ? { 'x-fork-edge-key': env.PROOF_EDGE_KEY, 'x-fork-client': 'live-suite' }
+          : {}),
+      },
       body: JSON.stringify({ attack }),
     });
 

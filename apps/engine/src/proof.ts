@@ -44,7 +44,8 @@ export function limitFrom(value: string | undefined, fallback: number): number {
 interface Observed {
   armoriq: 'allow' | 'block' | 'error';
   enforcedBy: 'armoriq_policy' | 'armoriq_sdk' | 'fork_mcp' | null;
-  outcome: 'executed' | 'refused' | 'not_reached';
+  // unknown: nothing proves whether the tool ran. never shown as a block.
+  outcome: 'executed' | 'refused' | 'not_reached' | 'unknown';
   errorClass: string | null;
 }
 
@@ -80,6 +81,8 @@ export interface ProofDeps {
   now?: () => Date;
   cooldownSeconds?: number;
   dailyLimit?: number;
+  // probes one client may run in any hour. applies only to callers the trusted edge identified.
+  clientHourlyLimit?: number;
 }
 
 export type Proof = ReturnType<typeof createProof>;
@@ -125,8 +128,13 @@ function observe(decision: DispatchResult): Observed {
     };
   }
   const errorClass = decision.errorClass ?? null;
+  if (decision.verdict !== 'block') {
+    // a hold, or anything else that is neither a yes nor a refusal. it proves nothing about
+    // whether the tool ran, so it is not reported as a block.
+    return { armoriq: 'error', enforcedBy: null, outcome: 'unknown', errorClass };
+  }
   return {
-    armoriq: decision.verdict === 'block' ? 'block' : 'error',
+    armoriq: 'block',
     enforcedBy:
       errorClass === 'PolicyBlockedException'
         ? 'armoriq_policy'
@@ -157,6 +165,7 @@ export function createProof(deps: ProofDeps) {
   const now = deps.now ?? (() => new Date());
   const cooldown = deps.cooldownSeconds ?? 20;
   const dailyLimit = deps.dailyLimit ?? 200;
+  const clientHourlyLimit = deps.clientHourlyLimit ?? 10;
   // one probe at a time. the engine is one process, so this is enough.
   let busy = false;
 
@@ -191,7 +200,7 @@ export function createProof(deps: ProofDeps) {
   }
 
   // refuses or records the run in one step, so two callers cannot both get through
-  function admit(attack: Attack, at: Date): number {
+  function admit(attack: Attack, at: Date, client?: string): number {
     return db.transaction(
       (tx) => {
         const failed = tx
@@ -205,6 +214,25 @@ export function createProof(deps: ProofDeps) {
             503,
             'Proof Mode is switched off after an integrity failure. An administrator has to clear it.',
           );
+        }
+
+        // one visitor cannot use up what everyone shares
+        if (client) {
+          const hourAgo = new Date(at.getTime() - 3_600_000).toISOString();
+          const mine = tx
+            .select({ startedAt: proofRuns.startedAt })
+            .from(proofRuns)
+            .where(and(eq(proofRuns.client, client), gt(proofRuns.startedAt, hourAgo)))
+            .orderBy(asc(proofRuns.id))
+            .all();
+          if (mine.length >= clientHourlyLimit) {
+            const freesAt =
+              Date.parse(mine[mine.length - clientHourlyLimit]!.startedAt) + 3_600_000;
+            throw limited(
+              'You have used your proof runs for this hour',
+              Math.max(1, Math.ceil((freesAt - at.getTime()) / 1000)),
+            );
+          }
         }
 
         const last = tx
@@ -233,7 +261,7 @@ export function createProof(deps: ProofDeps) {
 
         return tx
           .insert(proofRuns)
-          .values({ attack, startedAt: at.toISOString() })
+          .values({ attack, client: client ?? null, startedAt: at.toISOString() })
           .returning({ id: proofRuns.id })
           .get().id;
       },
@@ -301,9 +329,9 @@ export function createProof(deps: ProofDeps) {
     };
   }
 
-  async function probe(attack: Attack, gateway: Gateway): Promise<ProofResult> {
+  async function probe(attack: Attack, gateway: Gateway, client?: string): Promise<ProofResult> {
     const at = now();
-    const rowId = admit(attack, at);
+    const rowId = admit(attack, at, client);
     const ref = reference();
     const before = books();
     const nowSeconds = Math.floor(at.getTime() / 1000);
@@ -376,12 +404,24 @@ export function createProof(deps: ProofDeps) {
     }
 
     const steps: ProofStep[] = [];
-    let thrown: unknown;
+    // set when ArmorIQ could not be reached or answered with something that is not a verdict.
+    // an outage is not a security result and is never reported as one.
+    let outage: unknown;
     try {
-      steps.push(told(read, await gateway.dispatch(plan.planId, read), ALLOWED_READ));
-      steps.push(told(attempt, await gateway.dispatch(plan.planId, attempt), EXPECTED[attack]));
+      const first = await gateway.dispatch(plan.planId, read);
+      if (first.verdict === 'error') {
+        outage = first;
+      } else {
+        steps.push(told(read, first, ALLOWED_READ));
+        // the attempt only means something after a governed read that really came back allowed
+        if (first.verdict === 'allow' && !first.toolError) {
+          const second = await gateway.dispatch(plan.planId, attempt);
+          if (second.verdict === 'error') outage = second;
+          else steps.push(told(attempt, second, EXPECTED[attack]));
+        }
+      }
     } catch (error) {
-      thrown = error;
+      outage = error;
     }
     await gateway.close(plan.planId, 'failed').catch(() => undefined);
 
@@ -414,9 +454,18 @@ export function createProof(deps: ProofDeps) {
         { attack, ledger },
       );
     }
-    if (thrown) {
-      finish(rowId, {});
-      throw thrown;
+    if (outage) {
+      // the detail stays in the server log. an outage does not spend the cooldown or the budget,
+      // unless it also left a posting behind, in which case the row is the evidence.
+      console.error('proof: ArmorIQ dispatch failed', outage);
+      if (intact) db.delete(proofRuns).where(eq(proofRuns.id, rowId)).run();
+      throw new ApiError(
+        'ARMORIQ_UNAVAILABLE',
+        503,
+        intact
+          ? "ArmorIQ didn't respond. The probe did not complete and nothing was changed."
+          : "ArmorIQ didn't respond. The probe did not complete.",
+      );
     }
 
     const result: ProofResult = {
@@ -445,7 +494,7 @@ export function createProof(deps: ProofDeps) {
     return result;
   }
 
-  async function run(attack: Attack): Promise<ProofResult> {
+  async function run(attack: Attack, client?: string): Promise<ProofResult> {
     if (busy) throw limited('Another proof run is in progress', 5);
     busy = true;
     try {
@@ -456,7 +505,7 @@ export function createProof(deps: ProofDeps) {
           deps.gatewayMissingReason ?? 'ArmorIQ is not configured. Nothing was dispatched.',
         );
       }
-      return await probe(attack, deps.gateway);
+      return await probe(attack, deps.gateway, client);
     } finally {
       busy = false;
     }

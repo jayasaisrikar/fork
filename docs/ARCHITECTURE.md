@@ -102,8 +102,16 @@ visitor can run one of four preset probes through `POST /api/proof/run`
   the CFO makes at the same moment carries its own receipt and is not counted. If the check fails,
   Proof Mode switches itself off in the database and stays off until an administrator clears it
   with `POST /api/demo/proof-reset`.
+- The payment server itself refuses to pay from `proof-sandbox`, with `PROOF_SANDBOX_READ_ONLY`,
+  even for a capability that matches its arguments exactly. The capability is checked first, so
+  an altered payment still reads as `CAPABILITY_INVALID`.
+- An ArmorIQ outage is reported as an outage (503), never as a block. If the governed read cannot
+  be verified the attempt is not sent. A refusal that does not prove the tool never ran is shown as
+  "could not be established".
 - Limits: one probe at a time, a cooldown, and a cap per UTC day, all read from `proof_runs` so
-  they survive a restart.
+  they survive a restart. With `PROOF_EDGE_KEY` set, the engine takes probes only through the web
+  app's proxy and also limits each visitor per hour, by a hash of the address the proxy saw. It
+  never takes an address from a caller that does not hold the key.
 
 Only four routes are public, by exact method and path: `GET /api/health`,
 `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/proof/run`. Everything else needs the CFO

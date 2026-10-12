@@ -81,6 +81,7 @@ export function buildEngine(env: Env, db: Db, options: { mcpInProcess?: boolean 
     capabilitySecret,
     cooldownSeconds: limitFrom(env.PROOF_COOLDOWN_SECONDS, 20),
     dailyLimit: limitFrom(env.PROOF_DAILY_LIMIT, 200),
+    clientHourlyLimit: limitFrom(env.PROOF_CLIENT_HOURLY_LIMIT, 10),
   });
 
   const app = createApp({
@@ -89,6 +90,7 @@ export function buildEngine(env: Env, db: Db, options: { mcpInProcess?: boolean 
     proof,
     cfo: { email: env.CFO_EMAIL ?? '', password: env.CFO_PASSWORD ?? '' },
     adminKey: env.DEMO_ADMIN_KEY,
+    edgeKey: env.PROOF_EDGE_KEY || undefined,
     webOrigin: env.WEB_ORIGIN,
     secureCookies: env.NODE_ENV === 'production',
     // undefined when the MCP is served from this same process
