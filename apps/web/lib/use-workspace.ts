@@ -13,6 +13,7 @@ export interface Notice {
 // says something happened, so a reload always lands on the same screen.
 export function useWorkspace() {
   const [email, setEmail] = useState<string | null | undefined>(undefined);
+  const [guest, setGuest] = useState(false);
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [view, setView] = useState<RunView | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
@@ -44,8 +45,12 @@ export function useWorkspace() {
   useEffect(() => {
     (async () => {
       try {
-        const me = await api<{ email: string | null; csrfToken?: string }>('GET', '/api/auth/me');
+        const me = await api<{ email: string | null; csrfToken?: string; guest?: boolean }>(
+          'GET',
+          '/api/auth/me',
+        );
         if (me.csrfToken) setCsrf(me.csrfToken);
+        setGuest(Boolean(me.guest));
         setEmail(me.email);
         // run history and the books are private now. sign-in fetches them.
         if (me.email) await refresh();
@@ -108,6 +113,13 @@ export function useWorkspace() {
     [refresh],
   );
 
+  const signInAsGuest = () =>
+    act('Signing in', async () => {
+      const session = await api<{ email: string; csrfToken: string }>('POST', '/api/auth/guest');
+      setCsrf(session.csrfToken);
+      setEmail(session.email);
+    });
+
   const signIn = (password: string, as: string) =>
     act('Signing in', async () => {
       const session = await api<{ email: string; csrfToken: string }>('POST', '/api/auth/login', {
@@ -155,6 +167,8 @@ export function useWorkspace() {
     live,
     dismiss: () => setNotice(null),
     signIn,
+    guest,
+    signInAsGuest,
     explore,
     simulateAll,
     authorize: (branchId: string) => post('Approving', `/api/branches/${branchId}/authorize`),

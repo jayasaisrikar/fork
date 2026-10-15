@@ -421,6 +421,21 @@ export function SignIn({ ws }: { ws: Workspace }) {
       <Button variant="primary" type="submit" disabled={Boolean(ws.busy)} className="mt-5 w-full">
         Sign in
       </Button>
+      {ws.guest ? (
+        <>
+          <Button
+            type="button"
+            disabled={Boolean(ws.busy)}
+            onClick={() => void ws.signInAsGuest()}
+            className="mt-2.5 w-full"
+          >
+            Continue as guest
+          </Button>
+          <p className="text-muted mt-2 text-center text-[12px]">
+            For reviewers. Opens the same sandbox CFO account.
+          </p>
+        </>
+      ) : null}
     </form>
   );
 }

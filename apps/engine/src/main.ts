@@ -89,6 +89,7 @@ export function buildEngine(env: Env, db: Db, options: { mcpInProcess?: boolean 
     engine,
     proof,
     cfo: { email: env.CFO_EMAIL ?? '', password: env.CFO_PASSWORD ?? '' },
+    guestAccess: env.FORK_GUEST_ACCESS === '1',
     adminKey: env.DEMO_ADMIN_KEY,
     edgeKey: env.PROOF_EDGE_KEY || undefined,
     webOrigin: env.WEB_ORIGIN,
