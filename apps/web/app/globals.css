@@ -198,3 +198,45 @@ details[open] > summary .chevron {
 .shimmer {
   animation: shimmer 1.4s ease-in-out infinite;
 }
+
+/* the proof probe while it is in flight, and its verdicts arriving one by one */
+@keyframes proof-wire {
+  from {
+    left: -12px;
+  }
+  to {
+    left: 100%;
+  }
+}
+.proof-wire {
+  animation: proof-wire 1.5s linear infinite;
+}
+@keyframes proof-hop {
+  0%,
+  100% {
+    border-color: var(--line);
+  }
+  30% {
+    border-color: var(--accent);
+  }
+}
+.proof-hop {
+  animation: proof-hop 1.5s ease-in-out infinite;
+}
+@keyframes proof-dot {
+  50% {
+    transform: scale(1.8);
+  }
+}
+.proof-dot {
+  animation: proof-dot 1s ease-in-out infinite;
+}
+@keyframes proof-reveal {
+  from {
+    transform: translateY(6px);
+    clip-path: inset(0 100% 0 0);
+  }
+}
+.proof-reveal {
+  animation: proof-reveal 400ms ease-out both;
+}

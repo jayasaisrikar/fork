@@ -1,7 +1,7 @@
 'use client';
 
 import { Ban, Check, Mail, Play } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ApiFailure } from '@/lib/api';
 import { clock, day, usdShort as usd } from '@/lib/format';
 import {
@@ -133,9 +133,12 @@ function Recorded({ story }: { story: RecordedStory }) {
   );
 }
 
-function StepRow({ step }: { step: ProofStep }) {
+function StepRow({ step, index }: { step: ProofStep; index: number }) {
   return (
-    <tr className="border-line border-t align-top">
+    <tr
+      className="border-line proof-reveal border-t align-top"
+      style={{ animationDelay: `${index * 350}ms` }}
+    >
       <td className="py-3 pr-4 font-mono text-[12px]">{step.tool}</td>
       <td className="py-3 pr-4">
         <VerdictPill verdict={step.armoriq} />
@@ -173,8 +176,8 @@ function LiveResult({ result }: { result: ProofResult }) {
             </tr>
           </thead>
           <tbody>
-            {result.steps.map((step) => (
-              <StepRow key={step.tool} step={step} />
+            {result.steps.map((step, index) => (
+              <StepRow key={step.tool} step={step} index={index} />
             ))}
           </tbody>
         </table>
@@ -203,6 +206,58 @@ function LiveResult({ result }: { result: ProofResult }) {
           <HashChip value={result.reference.approvedPlanHash} label="Reference plan hash" />
         </dd>
       </dl>
+    </div>
+  );
+}
+
+// what a probe goes through. the engine answers once at the end, so none of these is ticked off
+// while it runs. the pulse only shows the request is still in flight.
+const HOPS = [
+  'FORK engine',
+  'ArmorIQ signs the plan',
+  'ArmorIQ proxy',
+  'Payment server',
+  'Ledger check',
+];
+
+function InFlight() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const started = Date.now();
+    const timer = setInterval(() => setSeconds(Math.floor((Date.now() - started) / 1000)), 250);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <div className="card mt-4 p-5" role="status" aria-live="polite">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="bg-accent proof-dot h-2 w-2 rounded-full" aria-hidden />
+        <span className="text-[14px] font-bold">Live against ArmorIQ</span>
+        <span className="text-muted font-mono text-[12px]">{seconds}s</span>
+      </div>
+      <ol className="mt-4 flex flex-wrap items-center gap-y-2">
+        {HOPS.map((hop, index) => (
+          <li key={hop} className="flex items-center">
+            <span
+              className="border-line proof-hop rounded-[8px] border px-3 py-1.5 text-[12px] font-bold"
+              style={{ animationDelay: `${index * 300}ms` }}
+            >
+              {hop}
+            </span>
+            {index < HOPS.length - 1 ? (
+              <span className="bg-line relative mx-2 h-px w-6 overflow-hidden" aria-hidden>
+                <span
+                  className="bg-accent proof-wire absolute inset-y-0 w-3"
+                  style={{ animationDelay: `${index * 300}ms` }}
+                />
+              </span>
+            ) : null}
+          </li>
+        ))}
+      </ol>
+      <p className="text-muted mt-4 text-[12px]">
+        A real plan is being signed and two real calls dispatched. This usually takes a few seconds;
+        the verdicts appear below as soon as ArmorIQ answers.
+      </p>
     </div>
   );
 }
@@ -284,7 +339,7 @@ function Live() {
           {problem}
         </p>
       ) : null}
-      {result ? <LiveResult result={result} /> : null}
+      {busy ? <InFlight /> : result ? <LiveResult result={result} /> : null}
     </section>
   );
 }
