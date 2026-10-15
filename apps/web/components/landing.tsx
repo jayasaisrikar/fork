@@ -14,6 +14,25 @@ import { buttonClass, Chip, HashChip, SourcePill, Tag, VerdictPill } from './pri
 const REPO = process.env.NEXT_PUBLIC_REPO_URL;
 const IC3_REPORT = 'https://www.ic3.gov/AnnualReport/Reports/2025_IC3Report.pdf';
 
+// every claim here was checked against the linked page, keep it that way
+const PAIN_POINTS = [
+  {
+    text: 'Hidden instructions on web pages already tricked live AI agents into sending crypto payments.',
+    source: 'SecurityWeek on Zscaler research, Jul 2026',
+    href: 'https://www.securityweek.com/prompt-injection-attacks-trick-ai-agents-into-making-crypto-payments/',
+  },
+  {
+    text: 'Malicious prompt injection on the web rose 32% between Nov 2025 and Feb 2026, including a payload forcing a $5,000 PayPal transfer.',
+    source: 'Cloud Security Alliance, citing Google and Forcepoint, Apr 2026',
+    href: 'https://labs.cloudsecurityalliance.org/research/csa-research-note-indirect-prompt-injection-in-the-wild-2026/',
+  },
+  {
+    text: 'OWASP ranks agent goal hijack and tool misuse as the top two risks for agentic applications.',
+    source: 'OWASP Top 10 for Agentic Applications',
+    href: 'https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/',
+  },
+];
+
 const wrap = 'mx-auto w-full max-w-[1240px] px-4 lg:px-8';
 const h2 = 'text-[30px] leading-[1.1] font-extrabold sm:text-[38px]';
 
@@ -434,7 +453,22 @@ export function Landing({ record }: { record: Recorded }) {
               ranks it the second-largest fraud category by loss. An agent that reads email and
               moves money needs a boundary it cannot talk its way past.
             </p>
-            <p className="text-muted mt-3 text-[12px]">
+            <ul className="mt-6 grid gap-3 sm:grid-cols-3">
+              {PAIN_POINTS.map((point) => (
+                <li key={point.href} className="border-line rounded-[10px] border p-4">
+                  <p className="text-[13px] leading-[1.6]">{point.text}</p>
+                  <a
+                    href={point.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-muted mt-2 block text-[12px] underline underline-offset-2"
+                  >
+                    {point.source}
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <p className="text-muted mt-5 text-[12px]">
               Source:{' '}
               <a href={IC3_REPORT} className="underline underline-offset-2">
                 FBI Internet Crime Complaint Center, 2025 Internet Crime Report

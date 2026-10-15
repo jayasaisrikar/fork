@@ -1,5 +1,20 @@
 # The 90-second video
 
+## Why this matters (cold open, optional 10 seconds)
+
+Voiceover: "Business email compromise cost $3.05 billion in 2025. Now attackers are hiding
+instructions for AI agents, and some agents have already paid." Show the landing page's Why this
+matters section. Sources, all checked:
+
+- FBI IC3 2025 Internet Crime Report: https://www.ic3.gov/AnnualReport/Reports/2025_IC3Report.pdf
+- SecurityWeek on Zscaler, Jul 6 2026, agents tricked into crypto payments:
+  https://www.securityweek.com/prompt-injection-attacks-trick-ai-agents-into-making-crypto-payments/
+- Cloud Security Alliance, Apr 2026, 32% rise in malicious injection (Google) and a $5,000 PayPal
+  payload (Forcepoint):
+  https://labs.cloudsecurityalliance.org/research/csa-research-note-indirect-prompt-injection-in-the-wild-2026/
+- OWASP Top 10 for Agentic Applications, ASI01 goal hijack and ASI02 tool misuse:
+  https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/
+
 Record at 1440×900, light theme, real UI only. No mocked screens.
 
 ## Before recording
