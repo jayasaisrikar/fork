@@ -192,6 +192,7 @@ describe('engine API', () => {
     const open = new Set([
       'GET /api/health',
       'POST /api/auth/login',
+      'POST /api/auth/guest',
       'GET /api/auth/me',
       'POST /api/proof/run',
     ]);
@@ -340,6 +341,32 @@ describe('proof mode API', () => {
       padding: 'x'.repeat(2000),
     });
     expect(response).toMatchObject({ status: 413, body: { code: 'BODY_TOO_LARGE' } });
+  });
+
+  it('signs a guest in as the CFO only when guest access is on', async () => {
+    const w = world();
+    const off = await w.app.request('/api/auth/guest', { method: 'POST' });
+    expect(off.status).toBe(404);
+    expect(await (await w.app.request('/api/auth/me')).json()).toEqual({
+      email: null,
+      guest: false,
+    });
+
+    const app = createApp({
+      db: w.db,
+      engine: w.engine,
+      proof: w.proofFor(),
+      cfo: CFO,
+      guestAccess: true,
+      armorHealth: async () => ({ configured: true, reachable: true, tools: [] }),
+    });
+    expect((await (await app.request('/api/auth/me')).json()).guest).toBe(true);
+    const on = await app.request('/api/auth/guest', { method: 'POST' });
+    expect(on.status).toBe(200);
+    expect((await on.json()).email).toBe(CFO.email);
+    const cookie = (on.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const me = await app.request('/api/auth/me', { headers: { cookie } });
+    expect((await me.json()).email).toBe(CFO.email);
   });
 
   it('sends Retry-After with a 429', async () => {

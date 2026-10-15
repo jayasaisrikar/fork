@@ -4,7 +4,7 @@ import { loadState, schema, type Db } from '@fork/db';
 import { AllocationError, liquidityShortfall, referenceBranches } from '@fork/domain-finance';
 import { InvalidTransitionError } from '@fork/harness';
 import { and, desc, eq, isNull, like, lt, notInArray, or, type SQL } from 'drizzle-orm';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
@@ -28,6 +28,8 @@ export interface AppDeps {
   engine: Engine;
   proof: Proof;
   cfo: CfoAccount;
+  // lets reviewers in as the CFO with one click. the password never leaves the server.
+  guestAccess?: boolean;
   adminKey?: string;
   // shared with the web app's proxy. when set, probes are taken only from that edge.
   edgeKey?: string;
@@ -99,6 +101,7 @@ export function createApp(deps: AppDeps) {
     // uptime monitors ask with HEAD
     'HEAD /api/health',
     'POST /api/auth/login',
+    'POST /api/auth/guest',
     'GET /api/auth/me',
     'POST /api/proof/run',
   ]);
@@ -140,10 +143,7 @@ export function createApp(deps: AppDeps) {
     return id;
   };
 
-  app.post('/api/auth/login', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    const session = login(db, deps.cfo, body.email, body.password, now());
-    if (!session) throw new ApiError('BAD_CREDENTIALS', 401, 'Wrong email or password');
+  const startSession = (c: Context<Env>, session: Session) => {
     setCookie(c, SESSION_COOKIE, session.id, {
       httpOnly: true,
       path: '/',
@@ -152,6 +152,21 @@ export function createApp(deps: AppDeps) {
       expires: new Date(session.expiresAt),
     });
     return c.json({ email: session.email, csrfToken: session.csrfToken });
+  };
+
+  app.post('/api/auth/login', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const session = login(db, deps.cfo, body.email, body.password, now());
+    if (!session) throw new ApiError('BAD_CREDENTIALS', 401, 'Wrong email or password');
+    return startSession(c, session);
+  });
+
+  // same CFO session as a normal sign-in, the server fills in the credentials itself
+  app.post('/api/auth/guest', (c) => {
+    if (!deps.guestAccess) throw new ApiError('NOT_FOUND', 404, 'Not found');
+    const session = login(db, deps.cfo, deps.cfo.email, deps.cfo.password, now());
+    if (!session) throw new ApiError('BAD_CREDENTIALS', 401, 'The CFO account is not configured');
+    return startSession(c, session);
   });
 
   app.post('/api/auth/logout', (c) => {
@@ -164,7 +179,7 @@ export function createApp(deps: AppDeps) {
     const session = c.get('session');
     return session
       ? c.json({ email: session.email, csrfToken: session.csrfToken })
-      : c.json({ email: null });
+      : c.json({ email: null, guest: Boolean(deps.guestAccess) });
   });
 
   app.get('/api/scenario', (c) => {

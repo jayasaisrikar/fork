@@ -35,6 +35,7 @@ PORT=8790 pnpm serve
 | `ARMORIQ_API_KEY`                                                     | Your ArmorIQ key                                                           |
 | `CFO_EMAIL`                                                           | Your ArmorIQ login email                                                   |
 | `CFO_PASSWORD`                                                        | A password for the demo CFO                                                |
+| `FORK_GUEST_ACCESS`                                                   | `1` adds "Continue as guest", which signs reviewers in as the CFO          |
 | `ARMORIQ_REQUESTER_EMAIL`                                             | `fork-agent@kettleandpine.test`                                            |
 | `FORK_MCP_KEY`                                                        | Same value as registered on ArmorIQ                                        |
 | `FORK_MCP_NAME`                                                       | Only if not registered as `fork-finance-mcp`                               |
