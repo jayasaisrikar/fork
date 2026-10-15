@@ -55,7 +55,7 @@ const REFUSALS: [string, 'purple' | 'bad' | 'gold', string, string][] = [
     'Blocked by ArmorIQ',
     'bad',
     'On a tool call',
-    'The call is not in the signed plan, or policy forbids it. A change of bank details that nobody approved ends here.',
+    "The agent's tool call is not in the signed plan, or policy forbids it. A bank-detail change that nobody approved stops here.",
   ],
   [
     'Held by ArmorIQ',
