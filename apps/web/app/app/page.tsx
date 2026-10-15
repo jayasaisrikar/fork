@@ -302,7 +302,11 @@ export default function StudioPage() {
       <Shell active="Studio" health={ws.health}>
         <main className="mx-auto flex w-full max-w-[1240px] flex-1 flex-col items-start gap-4 px-4 py-12 lg:px-8">
           <Notice ws={ws} />
-          {ws.email === null ? <SignIn ws={ws} /> : null}
+          {ws.email === null ? (
+            <div className="flex w-full flex-1 items-center justify-center">
+              <SignIn ws={ws} />
+            </div>
+          ) : null}
         </main>
       </Shell>
     );
@@ -460,7 +464,9 @@ export default function StudioPage() {
                         branch={branch}
                         selected={branch.id === selectedId}
                         recommended={recommended?.branchId === branch.id}
-                        reason={recommended?.branchId === branch.id ? recommended.reason : undefined}
+                        reason={
+                          recommended?.branchId === branch.id ? recommended.reason : undefined
+                        }
                         onSelect={() => select(branch.id)}
                       />
                     </li>
